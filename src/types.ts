@@ -9,8 +9,27 @@ export interface StyleCardBudgets {
   readonly requireTriangleLists?: boolean;
 }
 
-/** Opt-in shape gates. Every measured value is reported whether or not a gate is set. */
-export interface StyleCardGeometry {
+export interface GeometryIntegrity {
+  readonly openBoundaryEdges: number;
+  readonly nonManifoldEdges: number;
+  readonly windingInconsistencies: number;
+  readonly missingNormals: number;
+  readonly zeroLengthNormals: number;
+  readonly unnormalizedNormals: number;
+  readonly missingUvs: number;
+}
+
+export interface GeometryIntegrityGates {
+  readonly requireWatertight?: boolean;
+  readonly maxOpenBoundaryEdges?: number;
+  readonly maxNonManifoldEdges?: number;
+  readonly requireValidNormals?: boolean;
+  readonly requireUvsOnTextured?: boolean;
+  readonly requireConsistentWinding?: boolean;
+}
+
+/** Opt-in geometry gates. Every measured value is reported whether or not a gate is set. */
+export interface StyleCardGeometry extends GeometryIntegrityGates {
   /** Lowest vertex must sit on y=0 within groundToleranceFraction of the largest extent. */
   readonly groundContact?: boolean;
   readonly groundToleranceFraction?: number;
@@ -141,6 +160,7 @@ export interface PaletteAssessment {
 export interface AssetMetrics {
   readonly inputKind: 'glb' | 'factory';
   readonly glbSource: GlbSourceInfo | null;
+  readonly integrity: GeometryIntegrity;
   readonly trianglesByOccurrence: number;
   readonly trianglesUnique: number;
   readonly positionVerticesUnique: number;

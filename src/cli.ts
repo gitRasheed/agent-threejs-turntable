@@ -44,8 +44,13 @@ const VALID_BUDGET_KEYS = new Set([
   'degenerateTrianglesMax',
   'requireTriangleLists',
 ]);
+const GEOMETRY_SWITCHES = new Set([
+  'groundContact', 'requireWatertight', 'requireValidNormals', 'requireUvsOnTextured', 'requireConsistentWinding',
+]);
+const GEOMETRY_EDGE_LIMITS = new Set(['maxOpenBoundaryEdges', 'maxNonManifoldEdges']);
 const VALID_GEOMETRY_KEYS = new Set([
-  'groundContact',
+  ...GEOMETRY_SWITCHES,
+  ...GEOMETRY_EDGE_LIMITS,
   'groundToleranceFraction',
   'groundFootprintMin',
   'mirrorSymmetryMin',
@@ -183,8 +188,12 @@ function validateGeometry(value: unknown): void {
     if (!VALID_GEOMETRY_KEYS.has(k)) {
       throw new Error(`Unknown geometry key '${k}'`);
     }
-    if (k === 'groundContact') {
-      if (typeof v !== 'boolean') throw new Error('geometry.groundContact must be boolean');
+    if (GEOMETRY_SWITCHES.has(k)) {
+      if (typeof v !== 'boolean') throw new Error(`geometry.${k} must be boolean`);
+    } else if (GEOMETRY_EDGE_LIMITS.has(k)) {
+      if (!isFiniteNum(v) || !Number.isInteger(v) || v < 0) {
+        throw new Error(`geometry.${k} must be a non-negative integer`);
+      }
     } else if (k === 'lengthToWidth' || k === 'heightToLength') {
       validateRange(v, k);
     } else if (!isFiniteNum(v) || v < 0 || v > 1) {

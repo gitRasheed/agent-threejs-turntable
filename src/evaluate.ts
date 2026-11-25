@@ -1,4 +1,5 @@
 import { deltaE76, hexSrgbToLinearRgb, linearRgbToLabD65 } from './color.js';
+import { evaluateGeometryIntegrity } from './geometryIntegrity.js';
 import type { AssetMetrics, CaptureSettings, GateFinding, StyleCard, StyleCardGeometry, ViewMetrics } from './types.js';
 
 /** Uniforms the palette inspector reads, in order, for a ShaderMaterial's base color. */
@@ -292,7 +293,7 @@ export function evaluateAssetGates(
   }
 
   if (card?.geometry !== undefined) {
-    findings.push(...geometryFindings(metrics, card.geometry));
+    findings.push(...geometryFindings(metrics, card.geometry), ...evaluateGeometryIntegrity(metrics.integrity, card.geometry));
   }
 
   if (views !== undefined) {

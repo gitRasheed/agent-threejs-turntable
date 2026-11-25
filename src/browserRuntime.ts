@@ -53,6 +53,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { deltaE76, hexSrgbToLinearRgb, linearRgbToLabD65, linearRgbToHexSrgb } from './color.js';
 import { DEFAULT_SHADER_COLOR_UNIFORMS } from './evaluate.js';
+import { EMPTY_INTEGRITY, inspectGeometryIntegrity } from './geometryIntegrity.js';
 ${importLine}
 
 const MAX_REPORTED_COLORS = 48;
@@ -168,19 +169,29 @@ function collectTexturesFromUniformValue(val, outSet, seen) {
 }
 
 function collectMaterialTextures(mat, outSet) {
-  for (const val of Object.values(mat)) {
+  const uvChannels = new Set();
+  for (const [name, val] of Object.entries(mat)) {
     if (val && typeof val === 'object' && val.isTexture) {
       outSet.add(val);
-    }
-  }
-  if (mat.uniforms && typeof mat.uniforms === 'object') {
-    const seen = new Set();
-    for (const uniform of Object.values(mat.uniforms)) {
-      if (uniform && typeof uniform === 'object' && 'value' in uniform) {
-        collectTexturesFromUniformValue(uniform.value, outSet, seen);
+      if ((name === 'map' || name.endsWith('Map')) && name !== 'envMap' && name !== 'gradientMap') {
+        uvChannels.add(val.channel);
       }
     }
   }
+  if (mat.uniforms && typeof mat.uniforms === 'object') {
+    const uniforms = new Set();
+    const seen = new Set();
+    for (const uniform of Object.values(mat.uniforms)) {
+      if (uniform && typeof uniform === 'object' && 'value' in uniform) {
+        collectTexturesFromUniformValue(uniform.value, uniforms, seen);
+      }
+    }
+    for (const tex of uniforms) {
+      outSet.add(tex);
+      if (tex.mapping === THREE.UVMapping) uvChannels.add(tex.channel);
+    }
+  }
+  return uvChannels;
 }
 
 function materialHasUniformTexture(mat) {
@@ -224,6 +235,7 @@ function shaderUniformColors(mat, card) {
 function inspectRoot(root, inputKind, glbSource, card) {
   root.updateMatrixWorld(true);
 
+  const integrity = { ...EMPTY_INTEGRITY };
   const uniqueGeos = new Set();
   const effectiveMaterials = new Set();
   const effectiveTextures = new Set();
@@ -267,12 +279,19 @@ function inspectRoot(root, inputKind, glbSource, card) {
     // Only InstancedMesh carries per-instance matrices and colors; geometry instancing places copies in the shader.
     const instances = obj.isInstancedMesh ? drawn : 1;
     activeMeshEntries.push({ mesh: obj, spans, instances });
-    uniqueGeos.add(obj.geometry);
-    for (const span of spans) {
+    const geo = obj.geometry;
+    uniqueGeos.add(geo);
+    const integritySpans = spans.map(span => {
       trianglesByOccurrence += span.triCount * drawn;
       effectiveMaterials.add(span.material);
-      collectMaterialTextures(span.material, effectiveTextures);
-    }
+      const channels = collectMaterialTextures(span.material, effectiveTextures);
+      const requiredUvs = Array.from(channels, ch => geo.getAttribute(ch === 0 ? 'uv' : 'uv' + ch));
+      return { start: span.start, end: span.end, requiredUvs };
+    });
+    const measured = inspectGeometryIntegrity({
+      position: geo.getAttribute('position'), index: geo.index, normal: geo.getAttribute('normal'),
+    }, integritySpans);
+    for (const key of Object.keys(measured)) integrity[key] += measured[key];
   });
 
   // Compute exact world bounds from vertices referenced by active spans only.
@@ -521,6 +540,7 @@ function inspectRoot(root, inputKind, glbSource, card) {
     metrics: {
       inputKind,
       glbSource,
+      integrity,
       trianglesByOccurrence,
       trianglesUnique,
       positionVerticesUnique,

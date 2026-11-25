@@ -376,6 +376,47 @@ describe('geometry gates', () => {
   };
   const ids = (r: { readonly findings: readonly { readonly id: string }[] }) => r.findings.map((f) => f.id);
 
+  it('checks the drawn faces of a multi-material cube through the CLI', () => {
+    const card = fixture('integrity.json', JSON.stringify({ id: 'integrity', geometry: {
+      requireWatertight: true, maxOpenBoundaryEdges: 0, maxNonManifoldEdges: 0,
+      requireValidNormals: true, requireUvsOnTextured: true, requireConsistentWinding: true,
+    } }));
+    function checkCube(edit: string, strict: boolean, status: number) {
+      const asset = factory('integrity.mjs', `const geo = new THREE.BoxGeometry();
+        const materials = geo.groups.map(() => new THREE.MeshBasicMaterial());
+        const texture = new THREE.Texture();
+        texture.channel = 1;
+        materials[0].map = texture;
+        geo.setAttribute('uv1', geo.getAttribute('uv'));
+        geo.deleteAttribute('uv');
+        ${edit}
+        return new THREE.Mesh(geo, materials);`);
+      const run = cli('check', asset, ...(strict ? ['--card', card] : []));
+      assert.equal(run.status, status, run.stderr || run.stdout);
+      return JSON.parse(run.stdout) as Check3DReport;
+    }
+
+    const clean = checkCube('', true, 0);
+    assert.deepEqual(clean.findings, []);
+    assert.deepEqual(clean.metrics.integrity, {
+      openBoundaryEdges: 0, nonManifoldEdges: 0, windingInconsistencies: 0,
+      missingNormals: 0, zeroLengthNormals: 0, unnormalizedNormals: 0, missingUvs: 0,
+    });
+
+    const damage = `materials[1].visible = false;
+      geo.deleteAttribute('normal');
+      geo.deleteAttribute('uv1');
+      geo.index.array.subarray(0, 6).reverse();`;
+    const damaged = checkCube(damage, true, 1);
+    assert.deepEqual(damaged.findings.map(f => [f.id, f.actual]), [
+      ['OPEN_BOUNDARY_EDGES', 4], ['MISSING_NORMALS', 20],
+      ['MISSING_UVS', 4], ['INCONSISTENT_WINDING', 4],
+    ]);
+    const unguarded = checkCube(damage, false, 0);
+    assert.deepEqual(unguarded.findings, []);
+    assert.deepEqual(unguarded.metrics.integrity, damaged.metrics.integrity);
+  });
+
   it('measures mirror symmetry across the width axis', async () => {
     const card: StyleCard = { id: 'sym', geometry: { mirrorSymmetryMin: 0.95 } };
     const sym = await measure('sym.mjs', 'return new THREE.Mesh(new THREE.BoxGeometry(2, 1, 4), new THREE.MeshBasicMaterial());', card);
@@ -444,7 +485,8 @@ describe('geometry gates', () => {
   });
 
   it('rejects malformed geometry card entries with exit 2', () => {
-    for (const geometry of [{ mirrorSymmetry: 1 }, { lengthToWidth: [3, 1] }, { groundContact: 'yes' }, { mirrorSymmetryMin: 2 }]) {
+    for (const geometry of [{ mirrorSymmetry: 1 }, { lengthToWidth: [3, 1] }, { groundContact: 'yes' }, { mirrorSymmetryMin: 2 },
+      { requireWatertight: 1 }, { maxNonManifoldEdges: -1 }, { maxOpenBoundaryEdges: 0.5 }]) {
       const card = fixture('geo-card.json', JSON.stringify({ id: 'geo', geometry }));
       assert.equal(cli('check', box, '--card', card).status, 2, JSON.stringify(geometry));
     }
