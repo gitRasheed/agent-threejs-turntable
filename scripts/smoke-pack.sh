@@ -8,7 +8,7 @@ archive=$(npm pack --silent --pack-destination "$consumer")
 cd "$consumer"
 npm init --yes >/dev/null
 npm install --omit=dev --no-audit --no-fund "./$archive"
-./node_modules/.bin/playwright install chromium
+./node_modules/.bin/playwright install --only-shell chromium
 cli=./node_modules/.bin/agent-3d
 examples=./node_modules/agent-3d/examples
 "$cli" skill install --project
