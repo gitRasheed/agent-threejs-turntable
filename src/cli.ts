@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_CAPTURE, DEFAULT_TIMEOUT_MS, runAssetSession, stackLabeledPngs } from './browserRuntime.js';
 import { evaluateAssetGates } from './evaluate.js';
+import { validateTimeout } from './harness.js';
 import { installSkill } from './installSkill.js';
 import { runGpuProbe } from './gpuProbe.js';
 import type {
@@ -84,6 +85,7 @@ function usage(): string {
     '  --save-views              also write <view-id>.png for each of the nine views',
     '  --black-fill              write silhouette-sheet.png (batch: black-fill-masks.png), ortho-top and',
     '                            ortho-front as black silhouettes on white',
+    '  --fail-on-console-error     fail when the browser logs a console error (default)',
     '  --no-fail-on-console-error  report browser console errors as warnings instead of failing',
     'Exit codes: 0 pass, 1 gate violation, 2 invalid input / unsupported gate / renderer error',
     'gpu-probe exit codes: 0 WebGPU ok, 1 WebGPU blank, 2 launch error, 3 silent WebGL fallback, 4 WebGL failed too',
@@ -138,7 +140,7 @@ function parseArgs(
 }
 
 function parseTimeout(flags: ReadonlyMap<string, string>): number {
-  return Number(flags.get('--timeout') ?? DEFAULT_TIMEOUT_MS);
+  return validateTimeout(Number(flags.get('--timeout') ?? DEFAULT_TIMEOUT_MS));
 }
 
 function parseCapture(flags: ReadonlyMap<string, string>, switches: ReadonlySet<string>): CaptureSettings {
@@ -241,6 +243,7 @@ function validateCard(parsed: unknown, cardPath: string): StyleCard {
     if (typeof obj['palette'] !== 'object' || obj['palette'] === null || Array.isArray(obj['palette'])) {
       throw new Error('Style card palette must be a role -> #RRGGBB map');
     }
+    if (obj['paletteDeltaE76Max'] === undefined) throw new Error('palette requires paletteDeltaE76Max');
     for (const [role, hex] of Object.entries(obj['palette'] as Record<string, unknown>)) {
       if (typeof hex !== 'string' || !/^#?[0-9a-fA-F]{6}$/.test(hex.trim())) {
         throw new Error(`Invalid palette hex for role '${role}': ${String(hex)}`);
@@ -284,9 +287,13 @@ function validateCard(parsed: unknown, cardPath: string): StyleCard {
     if (obj['palette'] === undefined || Object.keys(obj['palette'] as object).length === 0) {
       throw new Error('separationRoles requires a non-empty palette');
     }
+    if (obj['separationMinDeltaE76'] === undefined) throw new Error('separationRoles requires separationMinDeltaE76');
     for (const pair of obj['separationRoles']) {
       if (!Array.isArray(pair) || pair.length !== 2 || typeof pair[0] !== 'string' || typeof pair[1] !== 'string') {
         throw new Error('Each separationRoles entry must be a [string, string] pair');
+      }
+      for (const role of pair) {
+        if (!Object.hasOwn(obj['palette'] as object, role)) throw new Error(`Unknown palette role '${role}' in separationRoles`);
       }
     }
   }

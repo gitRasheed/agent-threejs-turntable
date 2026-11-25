@@ -42,23 +42,24 @@ const clean = {
 const textured = [{ start: 0, end: 36, usesTextureMap: true }];
 
 test('closed textured cube passes every gate', () => {
-  const metrics = inspectGeometryIntegrity(cube(), textured);
+  const metrics = inspectGeometryIntegrity([{ ...cube(), spans: textured }]);
   assert.deepEqual(metrics, clean);
   assert.deepEqual(evaluateGeometryIntegrity(metrics, strictCard), []);
 });
 
 test('the non-indexed cube stays closed across split attributes and material groups', () => {
   const positions = triangles.flatMap(i => points.slice(3 * i, 3 * i + 3));
-  const metrics = inspectGeometryIntegrity({
+  const metrics = inspectGeometryIntegrity([{
     position: attribute(positions, 3),
     normal: attribute(positions.map(n => n / Math.sqrt(3)), 3),
     uv: attribute(triangles.flatMap((_, i) => [i % 2, i % 3]), 2),
-  }, [{ start: 0, end: 18, usesTextureMap: false }, { start: 18, end: 36, usesTextureMap: true }]);
+    spans: [{ start: 0, end: 18, usesTextureMap: false }, { start: 18, end: 36, usesTextureMap: true }],
+  }]);
   assert.deepEqual(metrics, clean);
 });
 
 test('removing a quad exposes four boundary edges at an inclusive budget', () => {
-  const metrics = inspectGeometryIntegrity(cube(triangles.slice(6)));
+  const metrics = inspectGeometryIntegrity([cube(triangles.slice(6))]);
   assert.deepEqual(metrics, { ...clean, openBoundaryEdges: 4 });
   assert.deepEqual(evaluateGeometryIntegrity(metrics, { maxOpenBoundaryEdges: 4 }), []);
   const [finding] = evaluateGeometryIntegrity(metrics, { maxOpenBoundaryEdges: 3 });
@@ -69,19 +70,19 @@ test('removing a quad exposes four boundary edges at an inclusive budget', () =>
 });
 
 test('stripping normals fails once and counts all eight referenced vertices', () => {
-  const metrics = inspectGeometryIntegrity({ ...cube(), normal: null });
+  const metrics = inspectGeometryIntegrity([{ ...cube(), normal: null }]);
   assert.deepEqual(metrics, { ...clean, missingNormals: 8 });
   assert.deepEqual(evaluateGeometryIntegrity(metrics, strictCard).map(f => f.id), ['MISSING_NORMALS']);
 });
 
 test('flipping a quad disagrees with its four neighbors', () => {
-  const metrics = inspectGeometryIntegrity(cube([0,1,2, 0,2,3, ...triangles.slice(6)]));
+  const metrics = inspectGeometryIntegrity([cube([0,1,2, 0,2,3, ...triangles.slice(6)])]);
   assert.deepEqual(metrics, { ...clean, windingInconsistencies: 4 });
   assert.deepEqual(evaluateGeometryIntegrity(metrics, strictCard).map(f => f.id), ['INCONSISTENT_WINDING']);
 });
 
 test('three triangles sharing one edge exceed a zero non-manifold budget', () => {
-  const metrics = inspectGeometryIntegrity(cube([0,1,2, 1,0,3, 0,1,4]));
+  const metrics = inspectGeometryIntegrity([cube([0,1,2, 1,0,3, 0,1,4])]);
   assert.equal(metrics.nonManifoldEdges, 1);
   assert.equal(metrics.openBoundaryEdges, 6);
   assert.deepEqual(evaluateGeometryIntegrity(metrics, { maxNonManifoldEdges: 0 }).map(f => f.id), ['NON_MANIFOLD_EDGES']);
@@ -91,7 +92,7 @@ test('three triangles sharing one edge exceed a zero non-manifold budget', () =>
 
 test('short, zero, nonfinite and non-unit normals give separate counts', () => {
   const normal = attribute([0,0,0, 0,0,2, NaN,0,1, 0,0,1.00001], 3);
-  const metrics = inspectGeometryIntegrity({ ...cube(), normal });
+  const metrics = inspectGeometryIntegrity([{ ...cube(), normal }]);
   assert.deepEqual(metrics, { ...clean, missingNormals: 4, zeroLengthNormals: 1, unnormalizedNormals: 2 });
   assert.deepEqual(evaluateGeometryIntegrity(metrics, strictCard).map(f => f.id),
     ['MISSING_NORMALS', 'ZERO_LENGTH_NORMALS', 'UNNORMALIZED_NORMALS']);
@@ -100,8 +101,8 @@ test('short, zero, nonfinite and non-unit normals give separate counts', () => {
 test('UV checks cover only the vertices used by textured spans, even after untextured use', () => {
   const spans = [{ start: 0, end: 6, usesTextureMap: false }, { start: 6, end: 12, usesTextureMap: true }];
   const mesh = { ...cube([0,1,2, 0,2,3, 0,4,7, 0,7,3]), uv: attribute([0,0], 2) };
-  const metrics = inspectGeometryIntegrity(mesh, spans);
+  const metrics = inspectGeometryIntegrity([{ ...mesh, spans }]);
   assert.equal(metrics.missingUvs, 3);
   assert.deepEqual(evaluateGeometryIntegrity(metrics, { requireUvsOnTextured: true }).map(f => f.id), ['MISSING_UVS']);
-  assert.equal(inspectGeometryIntegrity(mesh).missingUvs, 0);
+  assert.equal(inspectGeometryIntegrity([mesh]).missingUvs, 0);
 });

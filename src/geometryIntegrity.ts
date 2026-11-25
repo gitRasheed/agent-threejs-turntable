@@ -14,6 +14,7 @@ interface Vec3Attribute extends Vec2Attribute {
 }
 
 export interface TriangleBuffers {
+  readonly spans?: readonly TriangleSpan[];
   readonly position: Vec3Attribute;
   readonly index?: ScalarAttribute | null;
   readonly normal?: Vec3Attribute | null;
@@ -32,53 +33,11 @@ export const EMPTY_INTEGRITY: GeometryIntegrity = {
   missingNormals: 0, zeroLengthNormals: 0, unnormalizedNormals: 0, missingUvs: 0,
 };
 
-/** Inspect one mesh across its active material spans. The default covers the full untextured mesh. */
-export function inspectGeometryIntegrity(
-  { position, index, normal, uv }: TriangleBuffers,
-  spans?: readonly TriangleSpan[],
-): GeometryIntegrity {
-  const count = index?.count ?? position.count;
-  const vertices = new Map<number, number>();
+/** Primitives of the same mesh share position space, but each has its own attribute indices. */
+export function inspectGeometryIntegrity(primitives: readonly TriangleBuffers[]): GeometryIntegrity {
   const positions = new Map<string, number>();
-  const missingUvVertices = new Set<number>();
   const edges = new Map<string, { forward: number; reverse: number }>();
   const metrics = { ...EMPTY_INTEGRITY };
-
-  function vertexAt(corner: number, requiredUvs: UvAttributes): number {
-    const i = index ? index.getX(corner) : corner;
-    if (!Number.isInteger(i) || i < 0 || i >= position.count) {
-      throw new RangeError(`Triangle corner ${corner} references invalid vertex ${i}`);
-    }
-    if (!missingUvVertices.has(i) && requiredUvs.some(uv => !uv || uv.itemSize < 2 || i >= uv.count ||
-      !Number.isFinite(uv.getX(i)) || !Number.isFinite(uv.getY(i)))) {
-      missingUvVertices.add(i);
-      metrics.missingUvs++;
-    }
-    const cached = vertices.get(i);
-    if (cached !== undefined) return cached;
-
-    if (!normal || normal.itemSize < 3 || i >= normal.count) {
-      metrics.missingNormals++;
-    } else {
-      const length = Math.hypot(normal.getX(i), normal.getY(i), normal.getZ(i));
-      if (length === 0) metrics.zeroLengthNormals++;
-      else if (!Number.isFinite(length) || Math.abs(length - 1) > 1e-3) metrics.unnormalizedNormals++;
-    }
-
-    const x = position.getX(i), y = position.getY(i), z = position.getZ(i);
-    if (position.itemSize < 3 || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
-      throw new RangeError(`Invalid position at vertex ${i}`);
-    }
-    // Exact coordinates join vertices split at shading seams without closing small cracks.
-    const key = `${x},${y},${z}`;
-    let id = positions.get(key);
-    if (id === undefined) {
-      id = positions.size;
-      positions.set(key, id);
-    }
-    vertices.set(i, id);
-    return id;
-  }
 
   function recordEdge(from: number, to: number) {
     const forward = from < to;
@@ -92,25 +51,68 @@ export function inspectGeometryIntegrity(
     else edge.reverse++;
   }
 
-  for (const span of spans ?? [{ start: 0, end: count, usesTextureMap: false }]) {
-    const { start, end } = span;
-    const requiredUvs = 'requiredUvs' in span ? span.requiredUvs : span.usesTextureMap ? [uv] : [];
-    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end > count ||
-        (end - start) % 3 !== 0) {
-      throw new RangeError(`Invalid triangle span [${start}, ${end}) for ${count} corners`);
+  function inspectPrimitive({ position, index, normal, uv, spans }: TriangleBuffers) {
+    const count = index?.count ?? position.count;
+    const vertices = new Map<number, number>();
+    const missingUvVertices = new Set<number>();
+
+    function vertexAt(corner: number, requiredUvs: UvAttributes): number {
+      const i = index ? index.getX(corner) : corner;
+      if (!Number.isInteger(i) || i < 0 || i >= position.count) {
+        throw new RangeError(`Triangle corner ${corner} references invalid vertex ${i}`);
+      }
+      if (!missingUvVertices.has(i) && requiredUvs.some(uv => !uv || uv.itemSize < 2 || i >= uv.count ||
+        !Number.isFinite(uv.getX(i)) || !Number.isFinite(uv.getY(i)))) {
+        missingUvVertices.add(i);
+        metrics.missingUvs++;
+      }
+      const cached = vertices.get(i);
+      if (cached !== undefined) return cached;
+
+      if (!normal || normal.itemSize < 3 || i >= normal.count) {
+        metrics.missingNormals++;
+      } else {
+        const length = Math.hypot(normal.getX(i), normal.getY(i), normal.getZ(i));
+        if (length === 0) metrics.zeroLengthNormals++;
+        else if (!Number.isFinite(length) || Math.abs(length - 1) > 1e-3) metrics.unnormalizedNormals++;
+      }
+
+      const x = position.getX(i), y = position.getY(i), z = position.getZ(i);
+      if (position.itemSize < 3 || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
+        throw new RangeError(`Invalid position at vertex ${i}`);
+      }
+      // Exact coordinates join vertices split at shading seams without closing small cracks.
+      const key = `${x},${y},${z}`;
+      let id = positions.get(key);
+      if (id === undefined) {
+        id = positions.size;
+        positions.set(key, id);
+      }
+      vertices.set(i, id);
+      return id;
     }
-    for (let i = start; i < end; i += 3) {
-      const a = vertexAt(i, requiredUvs);
-      const b = vertexAt(i + 1, requiredUvs);
-      const c = vertexAt(i + 2, requiredUvs);
-      // A collapsed triangle must not count twice against its surviving edge.
-      if (a === b || b === c || c === a) continue;
-      recordEdge(a, b);
-      recordEdge(b, c);
-      recordEdge(c, a);
+
+    for (const span of spans ?? [{ start: 0, end: count, usesTextureMap: false }]) {
+      const { start, end } = span;
+      const requiredUvs = 'requiredUvs' in span ? span.requiredUvs : span.usesTextureMap ? [uv] : [];
+      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end > count ||
+          (end - start) % 3 !== 0) {
+        throw new RangeError(`Invalid triangle span [${start}, ${end}) for ${count} corners`);
+      }
+      for (let i = start; i < end; i += 3) {
+        const a = vertexAt(i, requiredUvs);
+        const b = vertexAt(i + 1, requiredUvs);
+        const c = vertexAt(i + 2, requiredUvs);
+        // A collapsed triangle must not count twice against its surviving edge.
+        if (a === b || b === c || c === a) continue;
+        recordEdge(a, b);
+        recordEdge(b, c);
+        recordEdge(c, a);
+      }
     }
   }
 
+  for (const primitive of primitives) inspectPrimitive(primitive);
   for (const { forward, reverse } of edges.values()) {
     const uses = forward + reverse;
     if (uses === 1) metrics.openBoundaryEdges++;

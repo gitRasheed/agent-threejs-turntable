@@ -639,3 +639,76 @@ describe('gpu-probe', () => {
     }
   });
 });
+
+describe('glTF material seams', () => {
+  async function splitCube(reversed: boolean) {
+    const doc = await new NodeIO().read(path.join(root, 'tests/fixtures/BoxVertexColors.glb'));
+    const [mesh] = doc.getRoot().listMeshes();
+    assert.ok(mesh);
+    const [body] = mesh.listPrimitives();
+    const indices = body?.getIndices();
+    const corners = indices?.getArray();
+    assert.ok(body && indices && corners);
+    const face = body.clone().setMaterial(doc.createMaterial('face'));
+    const faceCorners = corners.slice(0, 6);
+    if (reversed) faceCorners.reverse();
+    face.setIndices(indices.clone().setArray(faceCorners));
+    body.setIndices(indices.clone().setArray(corners.slice(6))).setMaterial(doc.createMaterial('body'));
+    mesh.addPrimitive(face);
+    return doc;
+  }
+
+  async function inspect(doc: Document) {
+    const file = path.join(dir, 'split.glb');
+    await new NodeIO().write(file, doc);
+    const card = { id: 'closed', geometry: { requireWatertight: true, requireConsistentWinding: true } };
+    const { metrics } = await runAssetSession({ assetPath: file, card, renderSheet: false });
+    return { metrics, findings: evaluateAssetGates(metrics, card).findings.map(f => [f.id, f.actual]) };
+  }
+
+  it('keeps a two-material glTF cube watertight', async () => {
+    const { metrics, findings } = await inspect(await splitCube(false));
+    assert.equal(metrics.trianglesByOccurrence, 12);
+    assert.equal(metrics.effectiveMaterials, 2);
+    assert.equal(metrics.integrity.openBoundaryEdges, 0);
+    assert.deepEqual(findings, []);
+  });
+
+  it('counts all four winding defects around a reversed glTF face', async () => {
+    const { metrics, findings } = await inspect(await splitCube(true));
+    assert.equal(metrics.integrity.openBoundaryEdges, 0);
+    assert.deepEqual(findings, [['INCONSISTENT_WINDING', 4]]);
+  });
+
+  it('keeps coincident glTF mesh occurrences separate when a node also carries a camera', async () => {
+    const doc = await splitCube(false);
+    const [node] = doc.getRoot().listNodes();
+    const mesh = node?.getMesh();
+    assert.ok(node && mesh);
+    node.setCamera(doc.createCamera().setType('perspective').setYFov(1));
+    node.addChild(doc.createNode().setMesh(mesh));
+    const { metrics, findings } = await inspect(doc);
+    assert.equal(metrics.trianglesByOccurrence, 24);
+    assert.deepEqual(findings, []);
+  });
+});
+
+describe('shader texture coordinates', () => {
+  for (const [coord, missing] of [['vec2(0.5)', 0], ['uv', 24]] as const) {
+    it(`counts ${missing} missing UVs when the shader samples with ${coord}`, async () => {
+      const asset = factory('lookup.mjs', `const geo = new THREE.BoxGeometry();
+        geo.deleteAttribute('uv');
+        const mat = new THREE.ShaderMaterial({
+          uniforms: { lookup: { value: new THREE.Texture() } },
+          vertexShader: 'varying vec2 coords; void main(){ /* uv lookup */ coords = ${coord}; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
+          fragmentShader: 'uniform sampler2D lookup; varying vec2 coords; void main(){ gl_FragColor = texture2D(lookup, coords); }',
+        });
+        return new THREE.Mesh(geo, mat);`);
+      const card = { id: 'shader', geometry: { requireUvsOnTextured: true } };
+      const { metrics } = await runAssetSession({ assetPath: asset, card, renderSheet: false });
+      assert.equal(metrics.effectiveTextures, 1);
+      assert.equal(metrics.integrity.missingUvs, missing);
+      assert.equal(evaluateAssetGates(metrics, card).ok, missing === 0);
+    });
+  }
+});

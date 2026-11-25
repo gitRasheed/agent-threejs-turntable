@@ -105,3 +105,55 @@ for (const summary of ['summary.json', 'summary.txt']) {
     assert.equal(fs.existsSync(path.join(project, 'BoxVertexColors')), false);
   });
 }
+
+it('resolves Three.js addon and TSL imports from a standalone factory', t => {
+  const { cli, project } = sandbox(t);
+  fs.writeFileSync(path.join(project, 'box.mjs'), `
+    import { BoxGeometry } from 'three';
+    import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+    import { float } from 'three/tsl';
+    export default THREE => {
+      if (BoxGeometry !== THREE.BoxGeometry || !float(1).isNode) throw Error('unexpected Three.js export');
+      return new THREE.Mesh(mergeGeometries([new BoxGeometry()]));
+    };`);
+  const result = cli('check', 'box.mjs');
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).metrics.trianglesByOccurrence, 12);
+});
+
+it('reports a factory bundling error as a single JSON diagnostic', t => {
+  const { cli, project } = sandbox(t);
+  fs.writeFileSync(path.join(project, 'broken.mjs'), "import './missing.mjs';");
+  const result = cli('check', 'broken.mjs');
+  assert.equal(result.status, 2);
+  assert.match(JSON.parse(result.stderr).message, /missing\.mjs/);
+});
+
+it('lists the explicit console error flag in the no-argument help', t => {
+  const { cli } = sandbox(t);
+  assert.match(cli().stderr, /--fail-on-console-error\b/);
+});
+
+it('rejects an invalid batch timeout before writing any output', t => {
+  const { cli, project } = sandbox(t);
+  fs.writeFileSync(path.join(project, 'box.mjs'), 'export default () => {};');
+  const result = cli('batch', '.', '--out', 'out', '--timeout', '0');
+  assert.equal(result.status, 2);
+  assert.match(JSON.parse(result.stderr).message, /--timeout/);
+  assert.ok(!fs.existsSync(path.join(project, 'out')));
+});
+
+const palette = { hull: '#ffffff' };
+for (const [name, options, error] of [
+  ['palette without a tolerance', { palette }, /paletteDeltaE76Max/],
+  ['separation without a minimum', { palette, paletteDeltaE76Max: 1, separationRoles: [['hull', 'hull']] }, /separationMinDeltaE76/],
+  ['unknown separation role', { palette, paletteDeltaE76Max: 1, separationMinDeltaE76: 2, separationRoles: [['toString', 'hull']] }, /toString/],
+] as const) {
+  it(`rejects a card with ${name} before loading the asset`, t => {
+    const { cli, project } = sandbox(t);
+    fs.writeFileSync(path.join(project, 'card.json'), JSON.stringify({ id: 'invalid', ...options }));
+    const result = cli('check', 'absent.glb', '--card', 'card.json');
+    assert.equal(result.status, 2);
+    assert.match(JSON.parse(result.stderr).message, error);
+  });
+}

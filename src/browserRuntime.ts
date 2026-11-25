@@ -170,26 +170,28 @@ function collectTexturesFromUniformValue(val, outSet, seen) {
 
 function collectMaterialTextures(mat, outSet) {
   const uvChannels = new Set();
+  const textures = new Set();
   for (const [name, val] of Object.entries(mat)) {
     if (val && typeof val === 'object' && val.isTexture) {
-      outSet.add(val);
-      if ((name === 'map' || name.endsWith('Map')) && name !== 'envMap' && name !== 'gradientMap') {
+      textures.add(val);
+      if (!mat.isShaderMaterial && (name === 'map' || name.endsWith('Map')) && name !== 'envMap' && name !== 'gradientMap') {
         uvChannels.add(val.channel);
       }
     }
   }
   if (mat.uniforms && typeof mat.uniforms === 'object') {
-    const uniforms = new Set();
     const seen = new Set();
     for (const uniform of Object.values(mat.uniforms)) {
       if (uniform && typeof uniform === 'object' && 'value' in uniform) {
-        collectTexturesFromUniformValue(uniform.value, uniforms, seen);
+        collectTexturesFromUniformValue(uniform.value, textures, seen);
       }
     }
-    for (const tex of uniforms) {
-      outSet.add(tex);
-      if (tex.mapping === THREE.UVMapping) uvChannels.add(tex.channel);
-    }
+  }
+  for (const texture of textures) outSet.add(texture);
+  if (textures.size && mat.isShaderMaterial) {
+    const source = (mat.vertexShader + '\\n' + mat.fragmentShader)
+      .replace(/\\/\\*[\\s\\S]*?\\*\\/|\\/\\/[^\\n]*/g, ' ');
+    for (const match of source.matchAll(/\\buv([123]?)\\b/g)) uvChannels.add(Number(match[1]));
   }
   return uvChannels;
 }
@@ -232,10 +234,30 @@ function shaderUniformColors(mat, card) {
   return { base, emission };
 }
 
-function inspectRoot(root, inputKind, glbSource, card) {
+async function gltfPrimitiveOwners(gltf) {
+  const { parser } = gltf;
+  const json = parser.json;
+  const pending = [...(json.scenes[json.scene ?? 0].nodes ?? [])];
+  const owners = new Map();
+  while (pending.length) {
+    const index = pending.pop();
+    const node = json.nodes[index];
+    for (const child of node.children ?? []) pending.push(child);
+    const count = json.meshes?.[node.mesh]?.primitives.length ?? 0;
+    if (count < 2) continue;
+    const object = await parser.getDependency('node', index);
+    // GLTFLoader wraps the mesh group when a node also carries a camera, light or bone.
+    const group = object.children[0].isGroup ? object.children[0] : object;
+    for (const primitive of group.children.slice(0, count)) owners.set(primitive, group);
+  }
+  return owners;
+}
+
+function inspectRoot(root, inputKind, glbSource, card, primitiveOwners) {
   root.updateMatrixWorld(true);
 
   const integrity = { ...EMPTY_INTEGRITY };
+  const primitivesByMesh = new Map();
   const uniqueGeos = new Set();
   const effectiveMaterials = new Set();
   const effectiveTextures = new Set();
@@ -288,11 +310,17 @@ function inspectRoot(root, inputKind, glbSource, card) {
       const requiredUvs = Array.from(channels, ch => geo.getAttribute(ch === 0 ? 'uv' : 'uv' + ch));
       return { start: span.start, end: span.end, requiredUvs };
     });
-    const measured = inspectGeometryIntegrity({
+    const owner = primitiveOwners?.get(obj) ?? obj;
+    if (!primitivesByMesh.has(owner)) primitivesByMesh.set(owner, []);
+    primitivesByMesh.get(owner).push({
+      spans: integritySpans,
       position: geo.getAttribute('position'), index: geo.index, normal: geo.getAttribute('normal'),
-    }, integritySpans);
-    for (const key of Object.keys(measured)) integrity[key] += measured[key];
+    });
   });
+  for (const primitives of primitivesByMesh.values()) {
+    const measured = inspectGeometryIntegrity(primitives);
+    for (const key of Object.keys(measured)) integrity[key] += measured[key];
+  }
 
   // Compute exact world bounds from vertices referenced by active spans only.
   const worldPoints = [];
@@ -994,6 +1022,7 @@ function renderContactSheet(root, worldBox, center, radius, card, capture) {
 
 export async function run({ inputKind, glbUrl, glbSource, card, renderSheet, capture }) {
   let root;
+  let primitiveOwners;
   if (inputKind === 'glb') {
     const resp = await fetch(glbUrl);
     if (!resp.ok) throw new Error('Failed to fetch GLB payload');
@@ -1001,6 +1030,7 @@ export async function run({ inputKind, glbUrl, glbSource, card, renderSheet, cap
     const loader = new GLTFLoader();
     const gltf = await loader.parseAsync(arrayBuf, '');
     root = gltf.scene;
+    primitiveOwners = await gltfPrimitiveOwners(gltf);
   } else {
     const fn =
       (UserFactory && (UserFactory.buildAsset || UserFactory.default)) || null;
@@ -1013,7 +1043,7 @@ export async function run({ inputKind, glbUrl, glbSource, card, renderSheet, cap
     throw new Error('Loaded asset did not return a THREE.Object3D');
   }
 
-  const inspected = inspectRoot(root, inputKind, glbSource, card);
+  const inspected = inspectRoot(root, inputKind, glbSource, card, primitiveOwners);
   let views = [];
   let viewImages = [];
   let sheetDataUrl = null;

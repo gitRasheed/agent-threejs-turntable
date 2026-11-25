@@ -12,11 +12,7 @@ MIT licensed. Needs Node.js 20 or later.
 | Inspect, optimize or compress a glTF file | [glTF Transform](https://gltf-transform.dev/cli) |
 | Fail an unattended build when an asset breaks the project's rules, and keep rendered evidence of why | agent-3d |
 
-Both of those tools overlap with parts of this one, and you should reach for them first for their own jobs. agent-3d covers what is left:
-
-- **It runs the code you ship.** A factory module is bundled and executed in a real browser against Three.js, so a shader that fails to compile or link fails the gate, and so does a view that renders empty or as one flat color. A static GLB goes through the same path.
-- **The rules are a file in your repo.** One style card holds the budgets, palette, pivot and proportion limits for a whole set of assets, and every asset is judged against it the same way.
-- **The verdict is machine-readable.** Each run returns an exit code and a finding ID with the measured value and the limit, and leaves a contact sheet to attach to the build.
+agent-3d runs factory modules and static GLBs in the same Three.js browser harness. A turntable catches shader compile and link errors, empty views and flat beauty tiles. One style card sets the budgets, palette, pivot and proportion limits for a set of assets. CI can read the exit code and finding IDs, and attach the contact sheet to the build.
 
 These gates run without a card. View checks run when you render a turntable.
 
@@ -38,12 +34,12 @@ A card adds the project's own limits:
 
 ## What a pass does not tell you
 
-- **Mesh integrity gates are opt-in.** A cube missing one face reports four open boundary edges in `metrics.integrity`. It can still pass unless the card limits open edges. Even a strict card leaves self-intersection and overlapping UVs unchecked.
-- **The rendered winding check is a heuristic.** It fires when backface culling hides more than half of the nearest front-sided surface in a view. To catch a single flipped triangle along a shared edge, enable `requireConsistentWinding`. A uniformly reversed closed shell still has consistent winding.
-- **Textured surfaces are not palette-checked.** A mesh colored by a texture, or by a shader with no recognized color uniform, gets an info finding and is left for visual review.
-- **Role separation compares the card with itself.** `separationRoles` measures the distance between two palette entries in the card. It does not measure colors on the asset.
-- **Nothing here judges how the asset looks.** Silhouette, readability and whether the proportions feel right need a reviewer looking at the sheet. The package ships a critic prompt for that in its [agent skill](skills/agent-3d/SKILL.md); it does not call a model.
-- **Assets are measured as stored.** Animations are never played, and the measurements ignore skinning and morph targets.
+- A cube missing a face reports four open edges in `metrics.integrity`. It can pass unless the card limits open edges. Self-intersection and overlapping UVs remain unchecked.
+- The rendered winding check fires when backface culling hides more than half the nearest front-sided surface in a view. Enable `requireConsistentWinding` to catch a single flipped triangle along a shared edge. A uniformly reversed closed shell still has consistent winding.
+- A textured mesh or a shader with no recognized color uniform gets an informational palette finding and needs visual review.
+- `separationRoles` measures the distance between two palette entries in the card.
+- A reviewer judges the silhouette, readability and proportions on the sheet. The package includes a critic prompt for this review. [Agent skill](skills/agent-3d/SKILL.md)
+- Measurements use the stored geometry and ignore animation, skinning and morph targets.
 
 ## Install
 
@@ -217,14 +213,15 @@ Do not add `--disable-vulkan-surface`; it blanks compositor screenshots. Exit co
 
 Every key except `id` is optional. An unknown key is rejected with exit 2, so a typo cannot silently disable a gate.
 
-- **Axes.** `frontAxis` is the direction the asset faces; it sets the front view and the length axis. `topUpAxis` is screen-up in the top view and cannot be ±Y.
-- **Pivot.** `"center"` requires the center of the world bounds to sit at the origin. `"ground"` requires the lowest point to sit on y=0. Both allow `pivotToleranceFraction` (default 0.05) of the largest extent.
-- **Palette.** For each untextured material the checker adds emissive color times intensity to the linear base color (after vertex and instance tinting), clamps to the sRGB gamut, and takes the CIE76 distance to the nearest role. The worst sample must stay within `paletteDeltaE76Max`. A `ShaderMaterial` is scored from its uniforms: the first of `shaderColorUniforms` (default `uAlbedo`, `uColor`, `color`) that holds a `Color` or `Vector3` is the base color, and `shaderEmissiveUniforms` (default `uEmissive`, `uEmissiveIntensity`) is added like emissive when present. Meshes colored by a texture, including a shader with a texture uniform, or by a shader with none of those uniforms, cannot be scored and are listed as info for visual review. `requirePaletteOnTextured: true` turns the textured case into an unsupported-gate exit 2. The report's `palette.colors` lists the 48 most-sampled colors with their nearest role, which is the quickest way to build or tune a palette.
-- **Separation.** Each pair in `separationRoles` must be at least `separationMinDeltaE76` apart. The pair is two roles from this card's `palette`, so the gate catches a palette whose roles are too close to tell apart.
-- **Geometry.** The report always includes shape measurements in `metrics.shape` and mesh integrity counts in `metrics.integrity`. Set the corresponding keys in `card.geometry` to make them gates. Ground contact needs the lowest point on y=0. The footprint is the x/z box of vertices within tolerance of the lowest point, divided by the full x/z box; a small value means the asset balances on a point or edge. Mirror symmetry is the share of vertices whose reflection across the width-axis mid-plane lands within tolerance of another vertex. Aspect ranges are inclusive `[min, max]`, with length measured along `frontAxis`.
-- **Budgets.** `bytesMax` and `requireTriangleLists` apply only to GLB input and are listed as skipped for factories. Degenerate triangles fail at any count above `degenerateTrianglesMax` (default 0), with or without a card.
+- `frontAxis` sets the front view and the length axis. `topUpAxis` sets screen-up in the top view and must be horizontal.
+- For `pivot`, `"center"` places the center of the world bounds at the origin. `"ground"` places the lowest point at y=0. Both allow a tolerance of `pivotToleranceFraction` (default 0.05) times the largest extent.
+- A `palette` requires `paletteDeltaE76Max`. For untextured materials the checker applies vertex and instance tints, adds emissive color times intensity to the linear base color, then clamps to the sRGB gamut. The worst CIE76 distance to the nearest role must stay within the limit. The report lists the 48 most-sampled colors and their nearest roles in `palette.colors`.
+- For a `ShaderMaterial`, the first of `shaderColorUniforms` (default `uAlbedo`, `uColor`, `color`) that holds a `Color` or `Vector3` supplies the base color. The checker adds emission from `shaderEmissiveUniforms` (default `uEmissive`, `uEmissiveIntensity`) when present. Meshes with a color texture, a shader texture uniform or no recognized shader color uniform need visual review. Setting `requirePaletteOnTextured` to `true` makes textured meshes an unsupported gate (exit 2).
+- Each pair in `separationRoles` must name two roles in the palette. The card must supply `separationMinDeltaE76`, the minimum distance between their colors.
+- The report always includes `metrics.shape` and `metrics.integrity`. Enable their gates in `card.geometry`. Ground contact checks the lowest point against y=0. The footprint is the x/z bounding box of vertices within tolerance of the lowest point, divided by the full x/z bounding box. A small ratio indicates point or edge contact. Mirror symmetry measures the share of vertices whose reflection across the width-axis mid-plane lands within tolerance of another vertex. Aspect ranges include both endpoints, with length measured along `frontAxis`.
+- `bytesMax` and `requireTriangleLists` apply to GLB inputs. The report lists them as skipped for factories. Degenerate triangles fail above `degenerateTrianglesMax` (default 0), with or without a card.
 
-Integrity checks use the triangles drawn by each mesh across its active material groups. Edge counts join vertices at identical positions, so a UV seam alone does not open a boundary.
+Integrity checks use the triangles drawn by each mesh across its active material groups, including separate glTF primitives of the same mesh. Edge counts join vertices at identical positions, so a UV seam alone does not open a boundary. For custom shaders, the UV check looks for explicit references to `uv`, `uv1`, `uv2` or `uv3` in the supplied GLSL.
 
 | Key in `card.geometry` | Failure condition | Finding ID |
 | --- | --- | --- |

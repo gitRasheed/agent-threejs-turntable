@@ -263,7 +263,7 @@ export function evaluateAssetGates(
         for (const [roleA, roleB] of card.separationRoles) {
           const hexA = card.palette[roleA];
           const hexB = card.palette[roleB];
-          if (hexA === undefined || hexB === undefined) {
+          if (typeof hexA !== 'string' || typeof hexB !== 'string') {
             unsupportedGate = true;
             findings.push({
               id: 'SEPARATION_ROLE_MISSING',

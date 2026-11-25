@@ -29,7 +29,7 @@ description: Gate and review a 3D asset (a static .glb or a Three.js factory mod
 
 After a change shared by many assets (a material, the palette, a common builder), gate the whole set: `npx agent-3d batch <dir> --card <card.json> --out out/batch`. Read the table on stderr, then open `out/batch/<name>/report.json` for each FAIL or ERROR row.
 
-The card is the project's contract. If an asset cannot meet a limit, report the conflict; do not loosen the card to get a pass. An unknown card key exits 2.
+The card is the project's contract. If an asset cannot meet a limit, report the conflict; do not loosen the card to get a pass. An unknown card key exits 2. A palette requires `paletteDeltaE76Max`. Separation pairs must name existing palette roles and include a `separationMinDeltaE76` threshold on the card.
 
 ## Findings
 
@@ -42,13 +42,19 @@ The card is the project's contract. If an asset cannot meet a limit, report the 
 | `MISSING_UVS` | `requireUvsOnTextured` checks the UV channels each textured material uses. Supply a finite UV pair for each referenced vertex on those channels. |
 | `INCONSISTENT_WINDING` | `requireConsistentWinding` found triangles that traverse a shared edge in the same direction. Correct their vertex order. |
 | `TRIANGLES_OVER_BUDGET`, `MATERIALS_OVER_BUDGET`, `TEXTURES_OVER_BUDGET`, `GLB_BYTES_OVER_BUDGET` | `actual` and `limit` are in the finding. Reduce the asset. |
+| `GLB_BUDGETS_SKIPPED` | The input is a factory. Run the card on the exported GLB to check file size and primitive modes. |
+| `NON_TRIANGLE_PRIMITIVES` | Export triangle lists for every primitive when the card requires them. |
+| `ROLE_SEPARATION_LOW` | The two named palette colors are closer than the card allows. Check the role pair and its colors with the card owner. |
+| `SEPARATION_ROLE_MISSING` | A library caller supplied a separation pair with an unknown role. Correct the name or add the intended role to the palette. The CLI rejects this card before loading the asset. |
+| `PALETTE_UNSUPPORTED_TEXTURED` | The card requires a palette measurement on a textured mesh. Supply the authored colors as untextured materials or report that the tool cannot verify this asset against the card. |
 | `PALETTE_DELTA_E_EXCEEDED` | Names the mesh, its color and the nearest role. `metrics.palette.colors` lists the 48 most-sampled colors; decide whether the color is a mistake or the card lacks a role, and ask before adding a role. |
 | `PALETTE_UNASSESSED_TEXTURED`, `PALETTE_UNASSESSED_SHADER` | Info only. Those meshes were not color-checked, so judge them on the sheet. |
 | `PIVOT_CENTER_MISMATCH`, `PIVOT_GROUND_MISMATCH` | The origin is not where the card wants it. Move the geometry to match. |
 | `GROUND_FLOATING`, `GROUND_SINKING`, `GROUND_FOOTPRINT_SMALL` | The lowest point is off y=0, or the asset rests on a point or edge. |
 | `MIRROR_SYMMETRY_LOW`, `ASPECT_LENGTH_TO_WIDTH`, `ASPECT_HEIGHT_TO_LENGTH` | Shape is outside the card's range. `metrics.shape` has the measured values. |
-| `VIEW_EDGE_CLIPPED` (fail) | The bounds include something far from the body, often a stray or invisible mesh. |
-| `VIEW_SUBJECT_MISSING`, `VIEW_BEAUTY_FLAT` | A view is empty or one flat color. Check visibility, materials and lighting response. |
+| `VIEW_EDGE_CLIPPED` | The silhouette touches the tile edge. Check the framing in the named view. Clipping is informational when that view is zoomed in. |
+| `VIEW_SUBJECT_MISSING` | The silhouette covers less than 1% of the tile. Check visibility and look for distant geometry that stretches the bounds. |
+| `VIEW_BEAUTY_FLAT` | The tile has fewer than two quantized colors. Check the material and lighting. A flat face filling a zoomed tile is informational. |
 | `INVERTED_WINDING` | Backface culling hides more than half the nearest front-sided surface in this view. Inspect triangle order before changing the mesh. |
 
 ## Look closer

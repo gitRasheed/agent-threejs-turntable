@@ -1,15 +1,9 @@
 import http from 'node:http';
-import { createRequire } from 'node:module';
-import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
 import { chromium, type Page } from 'playwright';
 
 export const DEFAULT_TIMEOUT_MS = 30000;
-
-const requireFromHere = createRequire(import.meta.url);
-// Works on Node 20.0.0+ without relying on import.meta.resolve (added in 20.6).
-const THREE_BUILD_DIR = path.dirname(requireFromHere.resolve('three'));
-const THREE_DIR = path.resolve(THREE_BUILD_DIR, '..');
 
 export const WEBGL_SWIFTSHADER_FLAGS: readonly string[] = [
   '--use-gl=angle',
@@ -48,13 +42,10 @@ export async function bundleBrowserEntry(source: string, resolveDir: string): Pr
     platform: 'browser',
     target: 'es2022',
     write: false,
-    // Longest keys first so 'three/webgpu' never resolves as a path under three.module.js.
-    alias: {
-      'three/webgpu': path.resolve(THREE_BUILD_DIR, 'three.webgpu.js'),
-      'three/examples': path.resolve(THREE_DIR, 'examples'),
-      three: path.resolve(THREE_BUILD_DIR, 'three.module.js'),
-    },
-    logOverride: { 'import-is-undefined': 'silent' },
+    // Resolve aliased imports from the harness so every factory shares its Three.js peer and exports.
+    absWorkingDir: fileURLToPath(new URL('.', import.meta.url)),
+    alias: { three: 'three' },
+    logLevel: 'silent',
   });
   const text = result.outputFiles[0]?.text;
   if (text === undefined) {
