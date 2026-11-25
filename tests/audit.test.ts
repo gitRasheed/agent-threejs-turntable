@@ -116,7 +116,9 @@ describe('CLI inputs and palette gates', () => {
     for (const budgets of [{ bytesMax: 0 }, { requireTriangleLists: true }]) {
       const result = evaluateAssetGates(metrics, { id: 'budget', budgets });
       assert.equal(result.ok, true);
-      assert.ok(result.findings.some(f => f.severity === 'info' && f.message.includes(Object.keys(budgets)[0]!)));
+      const [key] = Object.keys(budgets);
+      assert.ok(key);
+      assert.ok(result.findings.some(f => f.severity === 'info' && f.message.includes(key)));
     }
     const result = evaluateAssetGates(JSON.parse(glb.stdout).metrics, { id: 'budget', budgets: { bytesMax: 0 } });
     assert.deepEqual(result.findings.map(f => f.id), ['GLB_BYTES_OVER_BUDGET']);
@@ -131,7 +133,8 @@ it('packages the CLI, browser color module, and guides with Three.js as a peer',
   const pack = spawnSync('npm', ['pack', '--dry-run', '--ignore-scripts', '--json'], { cwd: root, encoding: 'utf8' });
   assert.equal(pack.status, 0, pack.stderr);
   const files = JSON.parse(pack.stdout)[0].files.map((file: { path: string }) => file.path);
-  for (const name of ['dist/cli.js', 'dist/color.js', 'dist/evaluate.js', 'dist/harness.js', 'dist/gpuProbe.js', 'dist/index.d.ts', 'README.md', 'SKILL.md', 'LICENSE']) {
+  for (const name of ['dist/cli.js', 'dist/color.js', 'dist/evaluate.js', 'dist/harness.js', 'dist/gpuProbe.js', 'dist/index.d.ts', 'README.md', 'skills/agent-3d/SKILL.md', 'examples/BoxVertexColors.glb',
+    'examples/BoxVertexColors.LICENSE.txt', 'examples/pass-card.json', 'examples/fail-card.json', 'LICENSE']) {
     assert.ok(files.includes(name), `Missing ${name} from tarball`);
   }
 });

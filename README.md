@@ -1,22 +1,31 @@
 # agent-3d
 
-Headless checks for 3D game assets, built for coding agents. Point it at a binary glTF (`.glb`) or a Three.js factory module and it measures the mesh, checks it against a style card, and renders a labeled nine-view contact sheet in headless Chromium. Every command prints a JSON report and exits 0 (pass), 1 (gate failed) or 2 (bad input, timeout, renderer error or unsupported gate).
+Headless checks for 3D game assets, built for coding agents. Point it at a binary glTF (`.glb`) or a Three.js factory module and it measures the mesh, checks it against a style card, and renders a labeled nine-view contact sheet in headless Chromium. Asset commands exit 0 for a pass, 1 for a gate failure and 2 for an input or execution error. Completed checks print a JSON report.
 
 MIT licensed. Needs Node.js 20 or later.
 
-## Install
+## Quickstart
+
+Build the tarball from the checkout.
 
 ```bash
 npm ci
-npx playwright install chromium
-npm run build
+npm pack
 ```
 
-From another directory, pack once with `npm pack` and run the tarball:
+In a consumer project, install that tarball and the Chromium build it uses.
 
 ```bash
-npx --package=/absolute/path/to/agent-3d-0.1.0.tgz -- agent-3d check ./model.glb
+npm install /path/to/agent-3d-0.1.0.tgz
+npx playwright install chromium
+examples=./node_modules/agent-3d/examples
+npx agent-3d turntable "$examples/BoxVertexColors.glb" --card "$examples/pass-card.json" --out out/pass
+npx agent-3d turntable "$examples/BoxVertexColors.glb" --card "$examples/fail-card.json" --out out/fail
 ```
+
+The CC0 box has 12 triangles. The first card permits 12 and exits 0. The second permits 11 and exits 1 with `TRIANGLES_OVER_BUDGET`. Open `contact-sheet.png` in either output directory for the nine views, or read `report.json` for measurements. The model's source and license are in [the CC0 notice](examples/BoxVertexColors.LICENSE.txt).
+
+To install the agent guide for this project, run `npx agent-3d skill install --project` from its root. Omit `--project` to install under your home directory. Both modes copy the guide into `.agents/skills/agent-3d/` and `.claude/skills/agent-3d/`. Repeating the command accepts identical copies. Move an edited or older copy aside before installing a different version.
 
 ## Commands
 
@@ -27,7 +36,7 @@ agent-3d batch <dir> --out <dir> [--card card.json] [capture options]
 agent-3d gpu-probe [--out <dir>] [--browser chrome|chromium] [--headed]
 ```
 
-`<asset>` is a `.glb` or a factory module (`.ts`, `.mts`, `.js`, `.mjs`). All commands accept `--timeout <ms>` (default 30000), which also bounds factory loading.
+`<asset>` is a `.glb` or a factory module (`.ts`, `.mts`, `.js`, `.mjs`). All four commands above accept `--timeout <ms>` (default 30000), which also bounds factory loading. If a GLB requires Draco or Meshopt, re-export it without mesh compression. For required Basis Universal (KTX2) textures, export PNG or JPEG textures.
 
 **check** measures geometry and authored colors without rendering. It reports triangle, material and texture counts, degenerate triangles, world bounds, shape (length, width, height, mirror symmetry, ground offset and footprint) and every sampled color with its nearest palette role.
 
@@ -138,7 +147,10 @@ const { ok, findings } = evaluateAssetGates(session.metrics, null, undefined, { 
 ## Development
 
 ```bash
-npm test        # type-checks, then runs the CLI and Chromium regression suite (about a minute)
+npm ci
+npx playwright install chromium
+npm run check
+bash scripts/smoke-pack.sh
 ```
 
-[SKILL.md](SKILL.md) is the agent-facing guide: the iteration loop and the blind visual critic prompt.
+The smoke test packs the CLI, installs it in a temporary consumer and renders both quickstart cards. The [agent skill](skills/agent-3d/SKILL.md) includes the asset iteration loop and blind visual critic prompt.

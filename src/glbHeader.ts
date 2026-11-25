@@ -6,6 +6,7 @@ const CHUNK_TYPE_JSON = 0x4e4f534a; // "JSON"
 const GLTF_TRIANGLES_MODE = 4;
 
 interface RawGltfJson {
+  readonly extensionsRequired?: readonly string[];
   readonly scenes?: readonly unknown[];
   readonly materials?: readonly unknown[];
   readonly textures?: readonly unknown[];
@@ -36,6 +37,18 @@ export function inspectGlbSource(filePath: string): GlbSourceInfo {
 
   const jsonText = new TextDecoder('utf-8').decode(bytes.subarray(20, 20 + chunkLen));
   const gltf = JSON.parse(jsonText) as RawGltfJson;
+
+  const remedies = {
+    KHR_draco_mesh_compression: 'Re-export the mesh without Draco compression.',
+    EXT_meshopt_compression: 'Re-export the mesh without Meshopt compression.',
+    KHR_texture_basisu: 'Replace the KTX2 textures with PNG or JPEG textures.',
+  };
+  const unsupported = Object.entries(remedies)
+    .filter(([name]) => gltf.extensionsRequired?.includes(name))
+    .map(([name, remedy]) => `${name}. ${remedy}`);
+  if (unsupported.length > 0) {
+    throw new Error(`${filePath} requires unsupported GLB extensions: ${unsupported.join(' ')}`);
+  }
 
   let nonTrianglePrimitives = 0;
   for (const mesh of gltf.meshes ?? []) {

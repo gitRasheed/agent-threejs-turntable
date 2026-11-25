@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_CAPTURE, DEFAULT_TIMEOUT_MS, runAssetSession, stackLabeledPngs } from './browserRuntime.js';
 import { evaluateAssetGates } from './evaluate.js';
+import { installSkill } from './installSkill.js';
 import { runGpuProbe } from './gpuProbe.js';
 import type {
   AxisDirection,
@@ -65,6 +67,7 @@ function usage(): string {
     '  agent-3d check <asset> [--card <style-card.json>] [--out <report.json>] [--timeout <ms>] [--no-fail-on-console-error]',
     '  agent-3d turntable <asset> --out <dir> [--card <style-card.json>] [--timeout <ms>] [capture options]',
     '  agent-3d batch <dir> --out <dir> [--card <style-card.json>] [--timeout <ms>] [capture options]',
+    '  agent-3d skill install [--project]',
     '  agent-3d gpu-probe [--out <dir>] [--browser chrome|chromium] [--headed] [--timeout <ms>]',
     '',
     '<asset> is a .glb or a factory module (.ts, .mts, .js, .mjs). batch runs every such file in <dir>.',
@@ -525,6 +528,12 @@ async function runBatch(args: readonly string[]): Promise<number> {
     throw new Error(`No .glb or factory modules found in ${path.resolve(dir)}`);
   }
 
+  const summaryJson = path.resolve(outDir, 'summary.json');
+  const summaryText = path.resolve(outDir, 'summary.txt');
+  for (const output of [summaryJson, summaryText]) {
+    assertOutputDoesNotClobberInputs(output, [...assets, options.cardPath]);
+  }
+
   const rows: BatchAssetRow[] = [];
   // Sequential on purpose: each asset already drives a multithreaded software rasterizer.
   for (const asset of assets) {
@@ -598,8 +607,8 @@ async function runBatch(args: readonly string[]): Promise<number> {
   };
   const table = formatBatchTable(batch);
   fs.mkdirSync(path.resolve(outDir), { recursive: true });
-  fs.writeFileSync(path.join(path.resolve(outDir), 'summary.json'), `${JSON.stringify(batch, null, 2)}\n`);
-  fs.writeFileSync(path.join(path.resolve(outDir), 'summary.txt'), table);
+  fs.writeFileSync(summaryJson, `${JSON.stringify(batch, null, 2)}\n`);
+  fs.writeFileSync(summaryText, table);
   process.stdout.write(`${JSON.stringify(batch)}\n`);
   process.stderr.write(table);
   return Math.max(0, ...rows.map((r) => r.exitCode));
@@ -626,6 +635,15 @@ async function runGpuProbeCli(args: readonly string[]): Promise<number> {
 export async function main(argv: readonly string[]): Promise<number> {
   const cmd = argv[0];
   try {
+    if (cmd === 'skill') {
+      const { positional, switches } = parseArgs(argv.slice(1), [], ['--project']);
+      if (positional.length !== 1 || positional[0] !== 'install') {
+        throw new Error('Usage: agent-3d skill install [--project]');
+      }
+      const installed = installSkill(switches.has('--project') ? process.cwd() : os.homedir());
+      process.stdout.write(`${JSON.stringify({ installed })}\n`);
+      return 0;
+    }
     if (cmd === 'check') {
       return await runCheck(argv.slice(1));
     }

@@ -31,8 +31,9 @@
   "files": [
     "dist",
     "README.md",
-    "SKILL.md",
-    "LICENSE"
+    "examples",
+    "LICENSE",
+    "skills"
   ],
   "engines": {
     "node": ">=20.0.0"
@@ -42,18 +43,23 @@
     "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "test": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && node --test dist-test/tests/*.test.js",
-    "gpu-probe": "node dist/cli.js gpu-probe"
+    "gpu-probe": "node dist/cli.js gpu-probe",
+    "lint": "eslint . --max-warnings=0",
+    "check": "npm run lint && npm test"
   },
   "dependencies": {
     "esbuild": "^0.28.2",
     "playwright": "^1.65.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@gltf-transform/core": "^4.5.1",
     "@types/node": "^26.6.6",
     "@types/three": "^0.187.0",
+    "eslint": "^10.15.0",
     "three": "^0.187.0",
-    "typescript": "^7.0.2"
+    "typescript": "~6.0.0",
+    "typescript-eslint": "^8.74.0"
   },
   "allowScripts": {
     "esbuild@0.28.2": true

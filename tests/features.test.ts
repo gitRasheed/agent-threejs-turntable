@@ -66,23 +66,25 @@ function pngRed(file: string): { readonly width: number; readonly height: number
   }
   const raw = zlib.inflateSync(Buffer.concat(idat));
   const stride = width * bpp;
-  const prev = new Uint8Array(stride);
-  const cur = new Uint8Array(stride);
+  const prev = Buffer.alloc(stride);
+  const cur = Buffer.alloc(stride);
   const red = new Uint8Array(width * height);
   for (let y = 0; y < height; y += 1) {
     const base = y * (stride + 1);
-    const filter = raw[base]!;
+    const filter = raw.readUInt8(base);
     for (let i = 0; i < stride; i += 1) {
-      const x = raw[base + 1 + i]!;
-      const a = i >= bpp ? cur[i - bpp]! : 0;
-      const b = prev[i]!;
-      const c = i >= bpp ? prev[i - bpp]! : 0;
+      const x = raw.readUInt8(base + 1 + i);
+      const a = i >= bpp ? cur.readUInt8(i - bpp) : 0;
+      const b = prev.readUInt8(i);
+      const c = i >= bpp ? prev.readUInt8(i - bpp) : 0;
       const p = a + b - c;
       const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
       const paeth = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
-      cur[i] = (x + [0, a, b, (a + b) >> 1, paeth][filter]!) & 0xff;
+      const prediction = [0, a, b, (a + b) >> 1, paeth][filter];
+      assert.ok(prediction !== undefined);
+      cur[i] = (x + prediction) & 0xff;
     }
-    for (let x = 0; x < width; x += 1) red[y * width + x] = cur[x * bpp]!;
+    for (let x = 0; x < width; x += 1) red[y * width + x] = cur.readUInt8(x * bpp);
     prev.set(cur);
   }
   return { width, height, red };
@@ -122,7 +124,8 @@ describe('turntable capture flags', () => {
     const zoomed = JSON.parse(result.stdout) as TurntableReport;
     assert.equal(zoomed.capture.zoomOrtho, false);
     for (const [i, view] of zoomed.views.entries()) {
-      const before = base.views[i]!;
+      const before = base.views[i];
+      assert.ok(before);
       if (view.ortho) {
         assert.equal(view.zoom, 1);
         assert.equal(view.coverageRatio, before.coverageRatio, `${view.id} changed framing`);
@@ -145,7 +148,9 @@ describe('turntable capture flags', () => {
     assert.equal(zoomed.capture.zoomOrtho, true);
     for (const [i, view] of zoomed.views.entries()) {
       assert.equal(view.zoom, 4);
-      assert.ok(view.coverageRatio > base.views[i]!.coverageRatio, `${view.id} did not zoom in`);
+      const before = base.views[i];
+      assert.ok(before);
+      assert.ok(view.coverageRatio > before.coverageRatio, `${view.id} did not zoom in`);
     }
     assert.ok(zoomed.findings.some((f) => f.id === 'VIEW_EDGE_CLIPPED' && f.severity === 'info' && f.message.includes("'ortho-")));
   });
@@ -177,7 +182,7 @@ describe('turntable capture flags', () => {
       let bottomBlack = 0;
       for (let y = 0; y < 120; y += 1) {
         for (let x = 0; x < 160; x += 1) {
-          const v = red[(26 + y) * width + col * 160 + x]!;
+          const v = red[(26 + y) * width + col * 160 + x];
           assert.ok(v === 0 || v === 255, `${id} has gray pixel ${v}`);
           if (v === 0) {
             black += 1;
@@ -186,7 +191,8 @@ describe('turntable capture flags', () => {
           }
         }
       }
-      const view = report.views.find((v) => v.id === id)!;
+      const view = report.views.find((v) => v.id === id);
+      assert.ok(view);
       assert.equal(black, Math.round(view.coverageRatio * 160 * 120), `${id} mask disagrees with coverage`);
       if (id === 'ortho-front') assert.ok(bottomBlack > topBlack * 2, `${id} looks flipped (${topBlack} top vs ${bottomBlack} bottom)`);
     }
@@ -365,7 +371,8 @@ describe('palette sampling', () => {
 describe('geometry gates', () => {
   const measure = async (name: string, body: string, card: StyleCard) => {
     const session = await runAssetSession({ assetPath: factory(name, body), card, renderSheet: false });
-    return { shape: session.metrics.shape!, result: evaluateAssetGates(session.metrics, card) };
+    assert.ok(session.metrics.shape);
+    return { shape: session.metrics.shape, result: evaluateAssetGates(session.metrics, card) };
   };
   const ids = (r: { readonly findings: readonly { readonly id: string }[] }) => r.findings.map((f) => f.id);
 
@@ -464,11 +471,14 @@ describe('quantized GLB bounds', () => {
 
     const reference = getBounds(scene);
     const session = await runAssetSession({ assetPath: file, card: null, renderSheet: false });
-    const bounds = session.metrics.worldBounds!;
+    const bounds = session.metrics.worldBounds;
+    assert.ok(bounds);
     const measured = [bounds.min.x, bounds.min.y, bounds.min.z, bounds.max.x, bounds.max.y, bounds.max.z];
     const expected = [...reference.min, ...reference.max];
     for (const [i, v] of measured.entries()) {
-      assert.ok(Math.abs(v - expected[i]!) < 1e-4, `bound ${i}: ${v} vs ${expected[i]}`);
+      const bound = expected[i];
+      assert.ok(bound !== undefined);
+      assert.ok(Math.abs(v - bound) < 1e-4, `bound ${i}: ${v} vs ${expected[i]}`);
     }
     assert.equal(session.metrics.shape?.groundOffset, bounds.min.y);
     assert.ok(Math.abs(bounds.min.y - 1.5) < 1e-4);

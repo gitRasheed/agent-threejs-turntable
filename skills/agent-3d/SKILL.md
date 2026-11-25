@@ -5,20 +5,19 @@ description: Check 3D assets (.glb or Three.js factory modules) with determinist
 
 # agent-3d
 
-Headless 3D verification for coding agents: Three.js in Playwright Chromium over SwiftShader WebGL. [README.md](README.md) has every flag, the style card reference and exit codes. This file covers how to use it while iterating on an asset.
+Run these commands from the project that contains the assets. The installed package's `node_modules/agent-3d/README.md` lists the flags, style card fields and exit codes.
 
 ## Setup
 
-From the package directory, with Node.js 20 or later:
-
 ```bash
-npm ci && npx playwright install chromium && npm run build
+npm install agent-3d
+npx playwright install chromium
 ```
 
 ## Loop
 
-1. **Gate the asset.** `node dist/cli.js turntable <asset> --card card.json --out out/<asset>`. Exit 0 passes, 1 is a gate failure (read `findings` in the JSON), 2 is bad input or a renderer problem (read stderr).
-2. **Gate the whole set** after a shared change such as a material, palette or lighting tweak: `node dist/cli.js batch <dir> --card card.json --out out/batch`. Read the table on stderr; open `out/batch/<name>/report.json` for any FAIL or ERROR row.
+1. **Gate the asset.** `npx agent-3d turntable <asset> --card card.json --out out/<asset>`. Exit 0 passes, 1 is a gate failure (read `findings` in the JSON), 2 is bad input or a renderer problem (read stderr).
+2. **Gate the whole set** after a shared change such as a material, palette or lighting tweak: `npx agent-3d batch <dir> --card card.json --out out/batch`. Read the table on stderr; open `out/batch/<name>/report.json` for any FAIL or ERROR row.
 3. **Look closer** when the critic or a finding points at a detail: `--tile-size 840x630 --zoom 1.4 --save-views` writes full-size single views such as `persp-three-quarter.png`. `--zoom` only crops the perspective views; the ortho views stay whole unless you add `--zoom-ortho`. Add `--black-fill` for `silhouette-sheet.png` (batch: `black-fill-masks.png`), the top and front views as black on white, to judge whether the silhouette reads without color or lighting. Use `--lighting cel` to see the asset under stylized game-style lighting, and `--lighting dramatic` to check that forms still read with deep shadows.
 4. **Run the blind critic** on `contact-sheet.png` (below).
 5. Fix **one issue class per iteration**, re-run with the same card, and re-check with a fresh critic context.
@@ -37,7 +36,7 @@ A browser-compatible `.ts`, `.mts`, `.js` or `.mjs` module exports `buildAsset(T
 
 ## WebGPU smoke job
 
-`node dist/cli.js gpu-probe --out out/gpu` answers whether WebGPU actually renders on this machine. Exit 0 means it does; exit 3 means three.js silently fell back to WebGL, so a WebGPU-only bug would go unnoticed. Keep the turntable on WebGL as the pixel gate and run the probe separately.
+`npx agent-3d gpu-probe --out out/gpu` answers whether WebGPU actually renders on this machine. Exit 0 means it does; exit 3 means three.js silently fell back to WebGL, so a WebGPU-only bug would go unnoticed. Keep the turntable on WebGL as the pixel gate and run the probe separately.
 
 ## Blind visual critic
 
