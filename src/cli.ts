@@ -70,11 +70,11 @@ const CAPTURE_SWITCHES = ['--zoom-ortho', '--save-views', '--black-fill'];
 function usage(): string {
   return [
     'Usage:',
-    '  agent-3d check <asset> [--card <style-card.json>] [--out <report.json>] [--timeout <ms>] [--no-fail-on-console-error]',
-    '  agent-3d turntable <asset> --out <dir> [--card <style-card.json>] [--timeout <ms>] [capture options]',
-    '  agent-3d batch <dir> --out <dir> [--card <style-card.json>] [--timeout <ms>] [capture options]',
-    '  agent-3d skill install [--project]',
-    '  agent-3d gpu-probe [--out <dir>] [--browser chrome|chromium] [--headed] [--timeout <ms>]',
+    '  agent-threejs-turntable check <asset> [--card <style-card.json>] [--out <report.json>] [--timeout <ms>] [--no-fail-on-console-error]',
+    '  agent-threejs-turntable turntable <asset> --out <dir> [--card <style-card.json>] [--timeout <ms>] [capture options]',
+    '  agent-threejs-turntable batch <dir> --out <dir> [--card <style-card.json>] [--timeout <ms>] [capture options]',
+    '  agent-threejs-turntable skill install [--project]',
+    '  agent-threejs-turntable gpu-probe [--out <dir>] [--browser chrome|chromium] [--headed] [--timeout <ms>]',
     '',
     '<asset> is a .glb or a factory module (.ts, .mts, .js, .mjs). batch runs every such file in <dir>.',
     'Capture options:',
@@ -373,7 +373,7 @@ async function runCheck(args: readonly string[]): Promise<number> {
     failOnConsoleError: !switches.has('--no-fail-on-console-error'),
   });
   const report: Check3DReport = {
-    schemaVersion: 'agent-3d/check/v1',
+    schemaVersion: 'agent-threejs-turntable/check/v1',
     ok: evalResult.ok,
     unsupportedGate: evalResult.unsupportedGate,
     asset: assetPath,
@@ -444,7 +444,7 @@ async function turntableReport(job: TurntableJob): Promise<{ readonly report: Tu
     capture: job.capture,
   });
   const report: TurntableReport = {
-    schemaVersion: 'agent-3d/turntable/v1',
+    schemaVersion: 'agent-threejs-turntable/turntable/v1',
     ok: evalResult.ok,
     unsupportedGate: evalResult.unsupportedGate,
     asset: job.assetPath,
@@ -609,7 +609,7 @@ async function runBatch(args: readonly string[]): Promise<number> {
 
   const passed = rows.filter((r) => r.ok).length;
   const batch: BatchReport = {
-    schemaVersion: 'agent-3d/batch/v1',
+    schemaVersion: 'agent-threejs-turntable/batch/v1',
     ok: passed === rows.length,
     dir: path.resolve(dir),
     outDir: path.resolve(outDir),
@@ -654,7 +654,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     if (cmd === 'skill') {
       const { positional, switches } = parseArgs(argv.slice(1), [], ['--project']);
       if (positional.length !== 1 || positional[0] !== 'install') {
-        throw new Error('Usage: agent-3d skill install [--project]');
+        throw new Error('Usage: agent-threejs-turntable skill install [--project]');
       }
       const installed = installSkill(switches.has('--project') ? process.cwd() : os.homedir());
       process.stdout.write(`${JSON.stringify({ installed })}\n`);

@@ -1,27 +1,27 @@
 {
-  "name": "agent-3d",
+  "name": "agent-threejs-turntable",
   "version": "0.1.0",
   "description": "Headless 3D asset checks for coding agents: mesh, palette and shape gates, nine-view contact sheets, batch runs, and a WebGPU smoke probe.",
   "keywords": [
-    "three.js",
-    "gltf",
+    "agent-threejs-turntable",
+    "threejs",
+    "three",
+    "turntable",
     "glb",
-    "3d",
-    "asset-pipeline",
+    "gltf",
+    "3d-qa",
+    "ci",
     "playwright",
-    "contact-sheet",
-    "style-guide",
-    "webgpu",
-    "agents"
+    "agent"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/gitRasheed/agent-3d.git"
+    "url": "https://github.com/gitRasheed/agent-threejs-turntable.git"
   },
   "license": "MIT",
   "type": "module",
   "bin": {
-    "agent-3d": "./dist/cli.js"
+    "agent-threejs-turntable": "dist/cli.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

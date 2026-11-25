@@ -21,7 +21,7 @@ export interface GpuProbeBackendResult {
 }
 
 export interface GpuProbeResult {
-  readonly schemaVersion: 'agent-3d/gpu-probe/v1';
+  readonly schemaVersion: 'agent-threejs-turntable/gpu-probe/v1';
   readonly ok: boolean;
   readonly exitCode: 0 | 1 | 3 | 4;
   readonly verdict: 'webgpu-ok' | 'webgpu-blank' | 'webgl-fallback' | 'webgl-failed';
@@ -180,7 +180,7 @@ function reportMarkdown(r: GpuProbeResult): string {
   const row = (name: string, b: GpuProbeBackendResult): string =>
     `| ${name} | ${b.backend ?? '-'} | ${b.uniqueColors} | ${b.error ?? ''} |`;
   return [
-    '# agent-3d gpu-probe',
+    '# agent-threejs-turntable gpu-probe',
     '',
     `Verdict: **${r.verdict}** (exit ${r.exitCode}). Browser: ${r.browser} ${r.browserVersion ?? ''}.`,
     '',
@@ -237,7 +237,7 @@ export async function runGpuProbe(options: GpuProbeOptions): Promise<GpuProbeRes
       }
       const verdict = classifyGpuProbe(webgpu, webgl);
       const final: GpuProbeResult = {
-        schemaVersion: 'agent-3d/gpu-probe/v1',
+        schemaVersion: 'agent-threejs-turntable/gpu-probe/v1',
         ok: verdict.exitCode === 0,
         ...verdict,
         browser: options.browser,

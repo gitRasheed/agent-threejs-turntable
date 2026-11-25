@@ -196,7 +196,7 @@ export interface ViewMetrics {
 }
 
 export interface Check3DReport {
-  readonly schemaVersion: 'agent-3d/check/v1';
+  readonly schemaVersion: 'agent-threejs-turntable/check/v1';
   readonly ok: boolean;
   readonly unsupportedGate: boolean;
   readonly asset: string;
@@ -207,7 +207,7 @@ export interface Check3DReport {
 }
 
 export interface TurntableReport {
-  readonly schemaVersion: 'agent-3d/turntable/v1';
+  readonly schemaVersion: 'agent-threejs-turntable/turntable/v1';
   readonly ok: boolean;
   readonly unsupportedGate: boolean;
   readonly asset: string;
@@ -243,7 +243,7 @@ export interface BatchAssetRow {
 }
 
 export interface BatchReport {
-  readonly schemaVersion: 'agent-3d/batch/v1';
+  readonly schemaVersion: 'agent-threejs-turntable/batch/v1';
   readonly ok: boolean;
   readonly dir: string;
   readonly outDir: string;

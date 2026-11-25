@@ -547,7 +547,7 @@ describe('batch', () => {
     assert.equal(result.status, 1, result.stderr);
     const summary = JSON.parse(result.stdout) as BatchReport;
     assert.deepEqual(summary, JSON.parse(fs.readFileSync(path.join(out, 'summary.json'), 'utf8')));
-    assert.equal(summary.schemaVersion, 'agent-3d/batch/v1');
+    assert.equal(summary.schemaVersion, 'agent-threejs-turntable/batch/v1');
     assert.equal(summary.cardId, 'batch-card');
     assert.deepEqual([summary.total, summary.passed, summary.failed, summary.ok], [2, 1, 1, false]);
     const [bad, good] = summary.assets;

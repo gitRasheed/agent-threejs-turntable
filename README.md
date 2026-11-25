@@ -1,4 +1,4 @@
-# agent-3d
+# agent-threejs-turntable
 
 A CI gate for 3D assets. Point it at a static `.glb` or at the Three.js module that builds your mesh. It loads the asset in headless Chromium, measures it, checks it against a JSON style card, and renders a labeled 3×3 contact sheet. Asset commands exit 0 for a pass, 1 for a gate failure and 2 for an input or execution error, and print a JSON report with one finding per failure.
 
@@ -10,9 +10,9 @@ MIT licensed. Needs Node.js 20 or later.
 | --- | --- |
 | Build or repair a model interactively | [Blender MCP](https://github.com/ahujasid/mcp-for-blender) |
 | Inspect, optimize or compress a glTF file | [glTF Transform](https://gltf-transform.dev/cli) |
-| Fail an unattended build when an asset breaks the project's rules, and keep rendered evidence of why | agent-3d |
+| Fail an unattended build when an asset breaks the project's rules, and keep rendered evidence of why | agent-threejs-turntable |
 
-agent-3d runs factory modules and static GLBs in the same Three.js browser harness. A turntable catches shader compile and link errors, empty views and flat beauty tiles. One style card sets the budgets, palette, pivot and proportion limits for a set of assets. CI can read the exit code and finding IDs, and attach the contact sheet to the build.
+agent-threejs-turntable runs factory modules and static GLBs in the same Three.js browser harness. A turntable catches shader compile and link errors, empty views and flat beauty tiles. One style card sets the budgets, palette, pivot and proportion limits for a set of assets. CI can read the exit code and finding IDs, and attach the contact sheet to the build.
 
 These gates run without a card. View checks run when you render a turntable.
 
@@ -38,13 +38,13 @@ A card adds the project's own limits:
 - The rendered winding check fires when backface culling hides more than half the nearest front-sided surface in a view. Enable `requireConsistentWinding` to catch a single flipped triangle along a shared edge. A uniformly reversed closed shell still has consistent winding.
 - A textured mesh or a shader with no recognized color uniform gets an informational palette finding and needs visual review.
 - `separationRoles` measures the distance between two palette entries in the card.
-- A reviewer judges the silhouette, readability and proportions on the sheet. The package includes a critic prompt for this review. [Agent skill](skills/agent-3d/SKILL.md)
+- A reviewer judges the silhouette, readability and proportions on the sheet. The package includes a critic prompt for this review. [Agent skill](skills/agent-threejs-turntable/SKILL.md)
 - Measurements use the stored geometry and ignore animation, skinning and morph targets.
 
 ## Install
 
 ```bash
-npm install --save-dev agent-3d
+npm install --save-dev agent-threejs-turntable
 npx playwright install --only-shell chromium
 ```
 
@@ -54,11 +54,11 @@ npx playwright install --only-shell chromium
 
 ```bash
 mkdir -p tools/asset-qa && cd tools/asset-qa
-npm init -y && npm install agent-3d
+npm init -y && npm install agent-threejs-turntable
 npx playwright install --only-shell chromium
 ```
 
-Then run `tools/asset-qa/node_modules/.bin/agent-3d` from the project root. Either way, a factory runs against the `three` that agent-3d resolves, because every `three` import in the bundle is aliased to that one copy. With a separate manifest, that copy is a 0.187 release and not the version your game ships.
+Then run `tools/asset-qa/node_modules/.bin/agent-threejs-turntable` from the project root. Either way, a factory runs against the `three` that agent-threejs-turntable resolves, because every `three` import in the bundle is aliased to that one copy. With a separate manifest, that copy is a 0.187 release and not the version your game ships.
 
 **GLB support.** Input must be a binary `.glb` that is self-contained and static.
 
@@ -71,9 +71,9 @@ Then run `tools/asset-qa/node_modules/.bin/agent-3d` from the project root. Eith
 The package bundles a 12-triangle box and two cards. `pass-card.json` allows 12 triangles and `fail-card.json` allows 11.
 
 ```bash
-ex=node_modules/agent-3d/examples
-npx agent-3d turntable $ex/BoxVertexColors.glb --card $ex/pass-card.json --out out/pass   # exit 0
-npx agent-3d turntable $ex/BoxVertexColors.glb --card $ex/fail-card.json --out out/fail   # exit 1
+ex=node_modules/agent-threejs-turntable/examples
+npx agent-threejs-turntable turntable $ex/BoxVertexColors.glb --card $ex/pass-card.json --out out/pass   # exit 0
+npx agent-threejs-turntable turntable $ex/BoxVertexColors.glb --card $ex/fail-card.json --out out/fail   # exit 1
 ```
 
 Each run takes under a second on a 16-core desktop and writes `contact-sheet.png` and `report.json` to its output directory. The same report goes to stdout. The failing run's report contains:
@@ -95,24 +95,24 @@ Open `out/pass/contact-sheet.png` to see the nine views. The box is CC0; its sou
 ## Agent skill
 
 ```bash
-npx agent-3d skill install --project
+npx agent-threejs-turntable skill install --project
 ```
 
-This copies the packaged [SKILL.md](skills/agent-3d/SKILL.md) to `.agents/skills/agent-3d/` and `.claude/skills/agent-3d/` in the current directory, where coding agents discover it. Without `--project`, both copies go under your home directory. The skill covers the gate, inspect and blind-critic loop.
+This copies the packaged [SKILL.md](skills/agent-threejs-turntable/SKILL.md) to `.agents/skills/agent-threejs-turntable/` and `.claude/skills/agent-threejs-turntable/` in the current directory, where coding agents discover it. Without `--project`, both copies go under your home directory. The skill covers the gate, inspect and blind-critic loop.
 
-Running it again is safe when the copies are identical. If either destination holds a different `SKILL.md`, the command exits 2 and writes nothing. After you upgrade agent-3d or edit a copy, move the old copies aside and install again.
+Running it again is safe when the copies are identical. If either destination holds a different `SKILL.md`, the command exits 2 and writes nothing. After you upgrade agent-threejs-turntable or edit a copy, move the old copies aside and install again.
 
 ## In CI
 
 ```yaml
 - run: npm ci
 - run: npx playwright install --with-deps --only-shell chromium
-- run: npx agent-3d batch assets/ships --card assets/ships.card.json --out artifacts/agent-3d
+- run: npx agent-threejs-turntable batch assets/ships --card assets/ships.card.json --out artifacts/agent-threejs-turntable
 - uses: actions/upload-artifact@v4
   if: always()
   with:
-    name: agent-3d
-    path: artifacts/agent-3d
+    name: agent-threejs-turntable
+    path: artifacts/agent-threejs-turntable
 ```
 
 `batch` exits with the worst result in the directory, and the uploaded folder holds a contact sheet and a report for every asset.
@@ -120,11 +120,11 @@ Running it again is safe when the copies are identical. If either destination ho
 ## Commands
 
 ```bash
-agent-3d check <asset> [--card card.json] [--out report.json]
-agent-3d turntable <asset> --out <dir> [--card card.json] [capture options]
-agent-3d batch <dir> --out <dir> [--card card.json] [capture options]
-agent-3d gpu-probe [--out <dir>] [--browser chrome|chromium] [--headed]
-agent-3d skill install [--project]
+agent-threejs-turntable check <asset> [--card card.json] [--out report.json]
+agent-threejs-turntable turntable <asset> --out <dir> [--card card.json] [capture options]
+agent-threejs-turntable batch <dir> --out <dir> [--card card.json] [capture options]
+agent-threejs-turntable gpu-probe [--out <dir>] [--browser chrome|chromium] [--headed]
+agent-threejs-turntable skill install [--project]
 ```
 
 `<asset>` is a `.glb` or a factory module (`.ts`, `.mts`, `.js`, `.mjs`). The first four commands accept `--timeout <ms>` (default 30000), which also bounds factory loading.
@@ -249,7 +249,7 @@ The factory executes in the headless browser on your machine, so run only module
 ## Library use
 
 ```ts
-import { runAssetSession, evaluateAssetGates } from 'agent-3d';
+import { runAssetSession, evaluateAssetGates } from 'agent-threejs-turntable';
 
 const session = await runAssetSession({ assetPath: 'ship.glb', card: null, renderSheet: false });
 const { ok, findings } = evaluateAssetGates(session.metrics, null, undefined, { consoleErrors: session.consoleErrors });

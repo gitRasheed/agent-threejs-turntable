@@ -7,10 +7,10 @@ import { it, type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const skill = 'skills/agent-3d/SKILL.md';
+const skill = 'skills/agent-threejs-turntable/SKILL.md';
 
 function sandbox(t: TestContext) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-3d-install-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-threejs-turntable-install-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const home = path.join(dir, 'home');
   const project = path.join(dir, 'project');

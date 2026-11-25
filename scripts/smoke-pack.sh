@@ -9,11 +9,13 @@ cd "$consumer"
 npm init --yes >/dev/null
 npm install --omit=dev --no-audit --no-fund "./$archive"
 ./node_modules/.bin/playwright install --only-shell chromium
-cli=./node_modules/.bin/agent-3d
-examples=./node_modules/agent-3d/examples
+cli=./node_modules/.bin/agent-threejs-turntable
+package=./node_modules/agent-threejs-turntable
+examples="$package/examples"
+skill=skills/agent-threejs-turntable/SKILL.md
 "$cli" skill install --project
-cmp .agents/skills/agent-3d/SKILL.md node_modules/agent-3d/skills/agent-3d/SKILL.md
-cmp .claude/skills/agent-3d/SKILL.md .agents/skills/agent-3d/SKILL.md
+cmp ".agents/$skill" "$package/$skill"
+cmp ".claude/$skill" "$package/$skill"
 
 "$cli" turntable "$examples/BoxVertexColors.glb" --card "$examples/pass-card.json" --out pass > pass.json
 status=0
@@ -26,6 +28,7 @@ import fs from 'node:fs';
 for (const mode of ['pass', 'fail']) {
   const report = JSON.parse(fs.readFileSync(`${mode}/report.json`, 'utf8'));
   assert.deepEqual(report, JSON.parse(fs.readFileSync(`${mode}.json`, 'utf8')));
+  assert.equal(report.schemaVersion, 'agent-threejs-turntable/turntable/v1');
   assert.equal(report.cardId, `box-${mode}`);
   assert.equal(report.ok, mode === 'pass');
   assert.equal(report.metrics.trianglesByOccurrence, 12);

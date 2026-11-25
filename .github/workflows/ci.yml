@@ -19,4 +19,5 @@ jobs:
       - run: npm ci
       - run: npx --no-install playwright install --with-deps --only-shell chromium
       - run: npm run check
-      - run: bash scripts/smoke-pack.sh
+      - name: Test the packed agent-threejs-turntable CLI
+        run: bash scripts/smoke-pack.sh

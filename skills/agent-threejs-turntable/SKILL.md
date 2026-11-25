@@ -1,33 +1,33 @@
 ---
-name: agent-3d
-description: Gate and review a 3D asset (a static .glb or a Three.js factory module) with the agent-3d CLI. Use after creating or changing a mesh, material, palette or shader, before claiming an asset is done, and when asked to check budgets, palette, pivot, proportions or framing, or to produce a turntable contact sheet.
+name: agent-threejs-turntable
+description: Gate and review a 3D asset (a static .glb or a Three.js factory module) with the agent-threejs-turntable CLI. Use after creating or changing a mesh, material, palette or shader, before claiming an asset is done, and when asked to check budgets, palette, pivot, proportions or framing, or to produce a turntable contact sheet.
 ---
 
-# agent-3d
+# agent-threejs-turntable
 
-`agent-3d` loads an asset in headless Chromium, measures it, checks it against the project's style card, and renders a labeled 3×3 contact sheet. It tells you whether the asset meets the card. It cannot tell you whether the asset looks right, so every pass ends with a blind visual review of the sheet.
+`agent-threejs-turntable` loads an asset in headless Chromium, measures it, checks it against the project's style card, and renders a labeled 3×3 contact sheet. It tells you whether the asset meets the card. It cannot tell you whether the asset looks right, so every pass ends with a blind visual review of the sheet.
 
 ## Run it
 
-- Installed as a dev dependency: `npx agent-3d <command>` from the project root.
-- Installed under its own manifest (projects pinned to another `three`): call that folder's `node_modules/.bin/agent-3d`.
-- Missing: `npm install --save-dev agent-3d && npx playwright install --only-shell chromium`. The browser takes about 280 MB on disk, so ask first.
+- Installed as a dev dependency: `npx agent-threejs-turntable <command>` from the project root.
+- Installed under its own manifest (projects pinned to another `three`): call that folder's `node_modules/.bin/agent-threejs-turntable`.
+- Missing: `npm install --save-dev agent-threejs-turntable && npx playwright install --only-shell chromium`. The browser takes about 280 MB on disk, so ask first.
 
-`agent-3d` with no arguments prints every command and flag. Asset commands exit **0** for a pass, **1** for a gate failure (read `findings` in the JSON report) and **2** for bad input, a renderer error or a gate the tool cannot evaluate (read the JSON error on stderr, or the `unsupported` finding in the report).
+`agent-threejs-turntable` with no arguments prints every command and flag. Asset commands exit **0** for a pass, **1** for a gate failure (read `findings` in the JSON report) and **2** for bad input, a renderer error or a gate the tool cannot evaluate (read the JSON error on stderr, or the `unsupported` finding in the report).
 
 `<asset>` is a self-contained binary `.glb` or a factory module (`.ts`, `.mts`, `.js`, `.mjs`) that exports `buildAsset(THREE)` or a default function returning a `THREE.Object3D` or a promise of one. A factory may import project code. `.gltf` files and GLBs that require Draco, Meshopt or KTX2 exit 2; re-export them uncompressed with PNG or JPEG textures.
 
 ## Loop
 
 1. **Turntable.** Run the full gate and render the evidence:
-   `npx agent-3d turntable <asset> --card <card.json> --out out/<name>`
+   `npx agent-threejs-turntable turntable <asset> --card <card.json> --out out/<name>`
    This writes `out/<name>/contact-sheet.png` and `report.json`.
 2. **Check.** Fix one class of finding at a time. After each fix, re-run the measurement gates without rendering:
-   `npx agent-3d check <asset> --card <card.json>`
+   `npx agent-threejs-turntable check <asset> --card <card.json>`
    `check` covers mesh, budget, palette, pivot and shape findings. View findings and shader errors only appear in `turntable`, so finish with step 1 again and require exit 0.
 3. **Blind critic.** Hand `contact-sheet.png` to a fresh reviewer with the prompt below. Act on its most severe fix, then return to step 1. Use a new critic context every round.
 
-After a change shared by many assets (a material, the palette, a common builder), gate the whole set: `npx agent-3d batch <dir> --card <card.json> --out out/batch`. Read the table on stderr, then open `out/batch/<name>/report.json` for each FAIL or ERROR row.
+After a change shared by many assets (a material, the palette, a common builder), gate the whole set: `npx agent-threejs-turntable batch <dir> --card <card.json> --out out/batch`. Read the table on stderr, then open `out/batch/<name>/report.json` for each FAIL or ERROR row.
 
 The card is the project's contract. If an asset cannot meet a limit, report the conflict; do not loosen the card to get a pass. An unknown card key exits 2. A palette requires `paletteDeltaE76Max`. Separation pairs must name existing palette roles and include a `separationMinDeltaE76` threshold on the card.
 

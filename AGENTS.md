@@ -1,4 +1,4 @@
-# Working on agent-3d
+# Working on agent-threejs-turntable
 
 ## Module boundaries
 

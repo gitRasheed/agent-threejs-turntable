@@ -4,7 +4,7 @@ This document covers resource ownership, deadlines and files a caller can observ
 
 | Machine | State and owner | Evidence |
 | --- | --- | --- |
-| Browser asset session | One ordered sequence per asset. The browser owns the scene and render buffers, and Node owns the output files. | Checked with the GLB/factory parity test in `tests/agent3d.test.ts` and the two packed turntables in `scripts/smoke-pack.sh`. |
+| Browser asset session | One ordered sequence per asset. The browser owns the scene and render buffers, and Node owns the output files. | Checked with the GLB/factory parity test in `tests/assetSession.test.ts` and the two packed turntables in `scripts/smoke-pack.sh`. |
 | Harness | A listening server can exist before the browser. An open page requires both. The caller owns the operation that runs on the page. | Checked with never-resolving factory and import cases in `tests/audit.test.ts`. |
 | Batch | One asset runs at a time. Each row records either a completed report or an execution error. Files from earlier runs can survive independently of the row. | Checked with mixed gate results and a throwing factory in `tests/features.test.ts`. |
 

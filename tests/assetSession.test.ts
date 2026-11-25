@@ -115,7 +115,7 @@ export function buildAsset(THREE) {
   );
 }
 
-describe('agent-3d Khronos fixture, color-space honesty, and transforms', () => {
+describe('agent-threejs-turntable Khronos fixture, color-space honesty, and transforms', () => {
   it('measures Khronos CC0 BoxVertexColors.glb with exact bytes, tris, verts, and declared vs effective materials', async () => {
     const session = await runAssetSession({
       assetPath: BOX_GLB,
@@ -135,7 +135,7 @@ describe('agent-3d Khronos fixture, color-space honesty, and transforms', () => 
     const lin = 128 / 255;
     assert.equal(linearRgbToHexSrgb(lin, lin, lin), '#bcbcbc');
 
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-3d-col-'));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-threejs-turntable-col-'));
     try {
       const glbPath = path.join(tmpDir, 'grey.glb');
       await writeWedgeGlb(glbPath, 1, { vertexGreyU8: 128 });
@@ -154,7 +154,7 @@ describe('agent-3d Khronos fixture, color-space honesty, and transforms', () => 
   });
 
   it('applies full world transforms (parent scale 2 * child x=3 === 6) and ignores hidden distant meshes', async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-3d-xf-'));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-threejs-turntable-xf-'));
     try {
       const factoryPath = path.join(tmpDir, 'scaled.mjs');
       fs.writeFileSync(
@@ -185,7 +185,7 @@ export function buildAsset(THREE) {
 });
 
 describe('asset measurements and CLI gates', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-3d-assets-'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-threejs-turntable-assets-'));
   after(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   for (const scaleFactor of [0.5, 300]) {
