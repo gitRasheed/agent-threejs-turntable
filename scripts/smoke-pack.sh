@@ -2,12 +2,14 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+git_url=$(node -p '"git+" + require("node:url").pathToFileURL(process.cwd()).href')
 consumer=$(mktemp -d)
 trap 'rm -rf -- "${consumer:?}"' EXIT
 archive=$(npm pack --silent --pack-destination "$consumer")
-cd "$consumer"
+mkdir "$consumer/tarball" "$consumer/git"
+cd "$consumer/tarball"
 npm init --yes >/dev/null
-npm install --omit=dev --no-audit --no-fund "./$archive"
+npm install --omit=dev --no-audit --no-fund "../$archive"
 ./node_modules/.bin/playwright install --only-shell chromium
 cli=./node_modules/.bin/agent-threejs-turntable
 package=./node_modules/agent-threejs-turntable
@@ -42,3 +44,32 @@ for (const mode of ['pass', 'fail']) {
   console.log(`${mode}: ${report.metrics.trianglesByOccurrence} triangles, ${report.views.length} views, ${png.length} PNG bytes`);
 }
 JS
+
+check_entry_points() {
+  test -f "$package/dist/cli.js"
+  test -f "$package/dist/index.js"
+  "$cli" --help >/dev/null
+  test "$("$cli" --version)" = "$(node -p "require('agent-threejs-turntable/package.json').version")"
+  cat > addon.mjs <<'JS'
+import { BoxGeometry } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+export default THREE => {
+  if (THREE.BoxGeometry !== BoxGeometry) throw new Error('Multiple Three.js instances');
+  return new THREE.Mesh(mergeGeometries([new BoxGeometry()]));
+};
+JS
+  node --input-type=module <<'JS'
+import assert from 'node:assert/strict';
+import { runAssetSession, evaluateAssetGates } from 'agent-threejs-turntable';
+
+const { metrics, consoleErrors } = await runAssetSession({ assetPath: 'addon.mjs', card: null, renderSheet: false });
+assert.equal(metrics.trianglesByOccurrence, 12);
+assert.deepEqual(evaluateAssetGates(metrics, null, { consoleErrors }).findings, []);
+JS
+}
+
+check_entry_points
+cd "$consumer/git"
+npm init --yes >/dev/null
+npm install --no-audit --no-fund "$git_url"
+check_entry_points

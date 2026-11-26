@@ -121,6 +121,18 @@ it('resolves Three.js addon and TSL imports from a standalone factory', t => {
   assert.equal(JSON.parse(result.stdout).metrics.trianglesByOccurrence, 12);
 });
 
+it('measures meshes built with the Three.js source exports', t => {
+  const { cli, project } = sandbox(t);
+  fs.writeFileSync(path.join(project, 'source-box.mjs'), `
+    import { Mesh } from 'three/src/objects/Mesh.js';
+    import { BoxGeometry } from 'three/src/geometries/BoxGeometry.js';
+    export default () => new Mesh(new BoxGeometry());
+  `);
+  const result = cli('check', 'source-box.mjs');
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).metrics.trianglesByOccurrence, 12);
+});
+
 it('reports a factory bundling error as a single JSON diagnostic', t => {
   const { cli, project } = sandbox(t);
   fs.writeFileSync(path.join(project, 'broken.mjs'), "import './missing.mjs';");
@@ -129,9 +141,16 @@ it('reports a factory bundling error as a single JSON diagnostic', t => {
   assert.match(JSON.parse(result.stderr).message, /missing\.mjs/);
 });
 
-it('lists the explicit console error flag in the no-argument help', t => {
+it('prints help and the package version to stdout', t => {
   const { cli } = sandbox(t);
-  assert.match(cli().stderr, /--fail-on-console-error\b/);
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  for (const flag of ['--help', '-h', '--version', '-v']) {
+    const result = cli(flag);
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    if (flag.includes('h')) assert.match(result.stdout, /--no-fail-on-console-error/);
+    else assert.equal(result.stdout.trim(), manifest.version);
+  }
 });
 
 it('rejects an invalid batch timeout before writing any output', t => {

@@ -1,6 +1,6 @@
 import { deltaE76, hexSrgbToLinearRgb, linearRgbToLabD65 } from './color.js';
 import { evaluateGeometryIntegrity } from './geometryIntegrity.js';
-import type { AssetMetrics, CaptureSettings, GateFinding, StyleCard, StyleCardGeometry, ViewMetrics } from './types.js';
+import type { AssetMetrics, GateFinding, StyleCard, StyleCardGeometry, ViewMetrics } from './types.js';
 
 /** Uniforms the palette inspector reads, in order, for a ShaderMaterial's base color. */
 export const DEFAULT_SHADER_COLOR_UNIFORMS: readonly string[] = ['uAlbedo', 'uColor', 'color'];
@@ -9,7 +9,7 @@ export interface GateContext {
   readonly consoleErrors?: readonly string[];
   /** Default true: any console error fails the gate. False reports them as warnings. */
   readonly failOnConsoleError?: boolean;
-  readonly capture?: CaptureSettings;
+  readonly views?: readonly ViewMetrics[];
 }
 
 function geometryFindings(metrics: AssetMetrics, geometry: StyleCardGeometry): GateFinding[] {
@@ -73,7 +73,6 @@ function geometryFindings(metrics: AssetMetrics, geometry: StyleCardGeometry): G
 export function evaluateAssetGates(
   metrics: AssetMetrics,
   card: StyleCard | null,
-  views?: readonly ViewMetrics[],
   context: GateContext = {},
 ): { readonly ok: boolean; readonly unsupportedGate: boolean; readonly findings: readonly GateFinding[] } {
   const findings: GateFinding[] = [];
@@ -91,7 +90,8 @@ export function evaluateAssetGates(
     });
   }
 
-  if (metrics.visibleMeshCount === 0 || metrics.trianglesByOccurrence === 0 || metrics.worldBounds === null) {
+  const empty = metrics.visibleMeshCount === 0 || metrics.trianglesByOccurrence === 0 || metrics.worldBounds === null;
+  if (empty) {
     findings.push({
       id: 'EMPTY_GEOMETRY',
       severity: 'fail',
@@ -296,8 +296,8 @@ export function evaluateAssetGates(
     findings.push(...geometryFindings(metrics, card.geometry), ...evaluateGeometryIntegrity(metrics.integrity, card.geometry));
   }
 
-  if (views !== undefined) {
-    for (const view of views) {
+  if (!empty && context.views !== undefined) {
+    for (const view of context.views) {
       const croppedIn = view.zoom > 1;
       if (view.coverageRatio < 0.01) {
         findings.push({

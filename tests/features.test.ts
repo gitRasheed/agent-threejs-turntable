@@ -8,16 +8,15 @@ import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
 import { Document, getBounds, NodeIO } from '@gltf-transform/core';
 import { listBatchAssets } from '../src/cli.js';
+import { classifyGpuProbe } from '../src/gpuProbe.js';
+import { hexSrgbToLinearRgb, linearRgbToHexSrgb } from '../src/color.js';
+import { WEBGPU_SWIFTSHADER_FLAGS } from '../src/harness.js';
 import {
-  classifyGpuProbe,
   evaluateAssetGates,
-  hexSrgbToLinearRgb,
-  linearRgbToHexSrgb,
   runAssetSession,
   runGpuProbe,
-  WEBGPU_SWIFTSHADER_FLAGS,
   type BatchReport,
-  type Check3DReport,
+  type CheckReport,
   type StyleCard,
   type TurntableReport,
 } from '../src/index.js';
@@ -160,8 +159,8 @@ describe('turntable capture flags', () => {
       { id: 'persp-front', ortho: false, zoom: 2, coverageRatio: 0.5, edgeClipped: true, beautyUniqueColors: 9 },
       { id: 'ortho-top', ortho: true, zoom: 1, coverageRatio: 0.5, edgeClipped: true, beautyUniqueColors: 9 },
     ];
-    const metrics = (JSON.parse(cli('check', box).stdout) as Check3DReport).metrics;
-    const clipped = evaluateAssetGates(metrics, null, views).findings.filter((f) => f.id === 'VIEW_EDGE_CLIPPED');
+    const metrics = (JSON.parse(cli('check', box).stdout) as CheckReport).metrics;
+    const clipped = evaluateAssetGates(metrics, null, { views }).findings.filter((f) => f.id === 'VIEW_EDGE_CLIPPED');
     assert.deepEqual(clipped.map((f) => f.severity), ['info', 'fail']);
   });
 
@@ -224,7 +223,7 @@ describe('turntable capture flags', () => {
       ['--zoom', '0'],
       ['--zoom', '1e3'],
       ['--lighting', 'neon'],
-      ['--save-views', '--no-fail-on-console-error', '--fail-on-console-error'],
+      ['--fail-on-console-error'],
     ]) {
       const result = cli('turntable', box, '--out', out, ...args);
       assert.equal(result.status, 2, `${args.join(' ')} should exit 2`);
@@ -257,14 +256,13 @@ describe('console error gate', () => {
     assert.ok(!report.findings.some((f) => f.id === 'CONSOLE_ERROR' && f.severity === 'fail'));
   });
 
-  it('catches console.error during check, and passes a clean asset with the explicit flag', () => {
+  it('catches console.error during check', () => {
     const noisy = factory('noisy.mjs', `console.error('texture atlas missing');
       return new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());`);
     const result = cli('check', noisy);
     assert.equal(result.status, 1, result.stderr || result.stdout);
-    const report = JSON.parse(result.stdout) as Check3DReport;
+    const report = JSON.parse(result.stdout) as CheckReport;
     assert.deepEqual(report.consoleErrors, ['texture atlas missing']);
-    assert.equal(cli('check', box, '--fail-on-console-error').status, 0);
   });
 });
 
@@ -317,7 +315,7 @@ describe('palette sampling', () => {
     const asset = factory('cel-hull.mjs', `return new THREE.Mesh(new THREE.BoxGeometry(), ${celShader('0xede6d5')});`);
     const result = cli('check', asset, '--card', hullCard);
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    const palette = (JSON.parse(result.stdout) as Check3DReport).metrics.palette;
+    const palette = (JSON.parse(result.stdout) as CheckReport).metrics.palette;
     assert.deepEqual([palette.status, palette.assessedMeshes, palette.shaderMeshes, palette.shaderUniformMeshes], ['assessed', 1, 0, 1]);
     const lin = hexSrgbToLinearRgb('#ede6d5');
     const red = Math.min(1, lin[0] + 0.5 * hexSrgbToLinearRgb('#200000')[0]);
@@ -328,7 +326,7 @@ describe('palette sampling', () => {
     const asset = factory('cel-off.mjs', `return new THREE.Mesh(new THREE.BoxGeometry(), ${celShader('0x00c040')});`);
     const result = cli('check', asset, '--card', hullCard);
     assert.equal(result.status, 1, result.stderr || result.stdout);
-    const report = JSON.parse(result.stdout) as Check3DReport;
+    const report = JSON.parse(result.stdout) as CheckReport;
     const finding = report.findings.find((f) => f.id === 'PALETTE_DELTA_E_EXCEEDED');
     assert.ok(finding !== undefined);
     assert.ok(typeof finding.actual === 'number' && finding.actual > 30);
@@ -393,7 +391,7 @@ describe('geometry gates', () => {
         return new THREE.Mesh(geo, materials);`);
       const run = cli('check', asset, ...(strict ? ['--card', card] : []));
       assert.equal(run.status, status, run.stderr || run.stdout);
-      return JSON.parse(run.stdout) as Check3DReport;
+      return JSON.parse(run.stdout) as CheckReport;
     }
 
     const clean = checkCube('', true, 0);
@@ -642,7 +640,7 @@ describe('gpu-probe', () => {
 
 describe('glTF material seams', () => {
   async function splitCube(reversed: boolean) {
-    const doc = await new NodeIO().read(path.join(root, 'tests/fixtures/BoxVertexColors.glb'));
+    const doc = await new NodeIO().read(path.join(root, 'examples/BoxVertexColors.glb'));
     const [mesh] = doc.getRoot().listMeshes();
     assert.ok(mesh);
     const [body] = mesh.listPrimitives();

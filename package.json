@@ -43,8 +43,8 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "prepack": "npm run build",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json",
+    "prepare": "npm run build",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "test": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && node --test dist-test/tests/*.test.js",
     "gpu-probe": "node dist/cli.js gpu-probe",
@@ -61,6 +61,7 @@
     "@types/node": "^26.6.6",
     "@types/three": "^0.187.0",
     "eslint": "^10.15.0",
+    "globals": "^17.14.0",
     "three": "^0.187.0",
     "typescript": "~6.0.0",
     "typescript-eslint": "^8.74.0"

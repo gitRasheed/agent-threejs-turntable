@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { evaluateAssetGates, nearestPaletteMatch, type Check3DReport, type TurntableReport } from '../src/index.js';
+import { nearestPaletteMatch } from '../src/color.js';
+import { evaluateAssetGates, type CheckReport, type TurntableReport } from '../src/index.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const dir = fs.mkdtempSync(path.join(root, 'dist-test', 'assets-'));
@@ -98,7 +99,7 @@ describe('CLI inputs and palette gates', () => {
     }));
     const result = cli('check', asset, '--card', card);
     assert.equal(result.status, 1, result.stderr || result.stdout);
-    const report = JSON.parse(result.stdout) as Check3DReport;
+    const report = JSON.parse(result.stdout) as CheckReport;
     const expected = nearestPaletteMatch([0.75, 0, 0.75], { ink: '#000000' });
     assert.equal(report.metrics.palette.maxDeltaE76, expected.deltaE76);
     assert.ok(report.findings.some(f => f.id === 'PALETTE_DELTA_E_EXCEEDED'));
@@ -109,10 +110,10 @@ describe('CLI inputs and palette gates', () => {
       return new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
     }`);
     const factory = cli('check', asset);
-    const glb = cli('check', path.join(root, 'tests/fixtures/BoxVertexColors.glb'));
+    const glb = cli('check', path.join(root, 'examples/BoxVertexColors.glb'));
     assert.equal(factory.status, 0);
     assert.equal(glb.status, 0);
-    const { metrics } = JSON.parse(factory.stdout) as Check3DReport;
+    const { metrics } = JSON.parse(factory.stdout) as CheckReport;
     for (const budgets of [{ bytesMax: 0 }, { requireTriangleLists: true }]) {
       const result = evaluateAssetGates(metrics, { id: 'budget', budgets });
       assert.equal(result.ok, true);
@@ -137,4 +138,49 @@ it('packages the CLI, browser color module, and guides with Three.js as a peer',
     'examples/BoxVertexColors.LICENSE.txt', 'examples/pass-card.json', 'examples/fail-card.json', 'LICENSE']) {
     assert.ok(files.includes(name), `Missing ${name} from tarball`);
   }
+});
+
+for (const order of [[0, 0.0001], [0.0001, 0]]) {
+  it(`scores both linear colors that round to black, in mesh order ${order}`, () => {
+    const asset = fixture('rounded.mjs', `export default THREE => {
+      const root = new THREE.Group();
+      for (const r of ${JSON.stringify(order)}) {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({
+          color: new THREE.Color(r, 0, 0)
+        }));
+        mesh.name = String(r);
+        root.add(mesh);
+      }
+      return root;
+    };`);
+    const palette = { ink: '#000000' };
+    const expected = nearestPaletteMatch([0.0001, 0, 0], palette).deltaE76;
+    const card = fixture('rounded.json', JSON.stringify({ id: 'rounded', palette, paletteDeltaE76Max: expected / 2 }));
+    const result = cli('check', asset, '--card', card);
+    assert.equal(result.status, 1, result.stderr);
+    const report = JSON.parse(result.stdout) as CheckReport;
+    assert.equal(report.metrics.palette.maxDeltaE76, expected);
+    assert.equal(report.metrics.palette.worstViolation?.meshName, '0.0001');
+    assert.deepEqual(report.metrics.palette.colors, [{
+      hexSrgb: '#000000', samples: 2, meshes: ['0', '0.0001'], nearestRole: 'ink', nearestHex: '#000000', deltaE76: expected,
+    }]);
+  });
+}
+
+it('keeps the sheet and independent findings for an empty asset', () => {
+  const asset = fixture('empty.mjs', `export default THREE => {
+    console.error('empty factory');
+    return new THREE.Group();
+  };`);
+  const card = fixture('empty.json', JSON.stringify({
+    id: 'empty', palette: { a: '#000000', b: '#000000' }, paletteDeltaE76Max: 1,
+    separationRoles: [['a', 'b']], separationMinDeltaE76: 1,
+  }));
+  const result = cli('turntable', asset, '--card', card, '--out', dir);
+  assert.equal(result.status, 1, result.stderr);
+  const report = JSON.parse(result.stdout) as TurntableReport;
+  assert.deepEqual(report.findings.map(f => f.id).sort(), ['CONSOLE_ERROR', 'EMPTY_GEOMETRY', 'ROLE_SEPARATION_LOW']);
+  assert.deepEqual(report.consoleErrors, ['empty factory']);
+  assert.equal(report.views.length, 9);
+  assert.equal(fs.readFileSync(report.contactSheetPath).subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
 });

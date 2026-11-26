@@ -37,8 +37,8 @@ A card adds the project's own limits:
 - A cube missing a face reports four open edges in `metrics.integrity`. It can pass unless the card limits open edges. Self-intersection and overlapping UVs remain unchecked.
 - The rendered winding check fires when backface culling hides more than half the nearest front-sided surface in a view. Enable `requireConsistentWinding` to catch a single flipped triangle along a shared edge. A uniformly reversed closed shell still has consistent winding.
 - A textured mesh or a shader with no recognized color uniform gets an informational palette finding and needs visual review.
-- `separationRoles` measures the distance between two palette entries in the card.
-- A reviewer judges the silhouette, readability and proportions on the sheet. The package includes a critic prompt for this review. [Agent skill](skills/agent-threejs-turntable/SKILL.md)
+- `separationRoles` compares colors defined in the card. A model can pass even if those roles are absent or visually indistinguishable on the sheet.
+- A reviewer judges the silhouette, readability and proportions on the sheet. The [agent skill](skills/agent-threejs-turntable/SKILL.md) includes a critic prompt for this review.
 - Measurements use the stored geometry and ignore animation, skinning and morph targets.
 
 ## Install
@@ -48,7 +48,7 @@ npm install --save-dev agent-threejs-turntable
 npx playwright install --only-shell chromium
 ```
 
-**Browser footprint.** Every asset command launches a browser, `check` included. `check`, `turntable` and `batch` need only Playwright's Chromium headless shell, which takes 282 MiB on disk on Linux x64 (Playwright 1.65.1, Chrome 159). The npm packages add about 53 MB. Omitting `--only-shell` also installs full Chromium, which takes another 414 MiB on disk on the same platform. Install it if you run `gpu-probe --browser chromium --headed`. On a bare Linux CI image, add `--with-deps` to install the system libraries. Rendering is software WebGL through SwiftShader, which ships inside the browser, so no GPU or display is needed.
+Every asset command, including `check`, runs in Playwright’s Chromium headless shell. SwiftShader provides software WebGL on machines without a GPU or display. For `gpu-probe --browser chromium --headed`, omit `--only-shell` to install full Chromium. On bare Linux CI images, add `--with-deps` for the system libraries.
 
 **Three.js version.** `three@^0.187.0` is a peer dependency. npm installs it for you when the project has no `three`. In a project pinned to another `three`, the install fails with `ERESOLVE`. Give the tool its own manifest:
 
@@ -76,7 +76,7 @@ npx agent-threejs-turntable turntable $ex/BoxVertexColors.glb --card $ex/pass-ca
 npx agent-threejs-turntable turntable $ex/BoxVertexColors.glb --card $ex/fail-card.json --out out/fail   # exit 1
 ```
 
-Each run takes under a second on a 16-core desktop and writes `contact-sheet.png` and `report.json` to its output directory. The same report goes to stdout. The failing run's report contains:
+Each run writes `contact-sheet.png` and `report.json` to its output directory. The same report goes to stdout. The failing run's report contains:
 
 ```json
 "findings": [
@@ -131,7 +131,7 @@ agent-threejs-turntable skill install [--project]
 
 **check** measures geometry and authored colors without rendering. It reports triangle, material and texture counts, degenerate triangles, world bounds, shape (length, width, height, mirror symmetry, ground offset and footprint) and every sampled color with its nearest palette role.
 
-**turntable** runs the same checks, then renders nine views (`persp-front`, `persp-three-quarter`, `persp-right`, `persp-back`, `persp-left`, `persp-hero-low`, `ortho-front`, `ortho-right`, `ortho-top`) into `<dir>/contact-sheet.png` and writes `<dir>/report.json`. Each view is gated: the subject must cover at least 1% of the tile, must not touch the tile edge, must not be a single flat color, and backface culling must not hide more than half of the nearest `FrontSide` surface.
+**turntable** runs the same checks, then renders nine views (`persp-front`, `persp-three-quarter`, `persp-right`, `persp-back`, `persp-left`, `persp-hero-low`, `ortho-front`, `ortho-right`, `ortho-top`) into `<dir>/contact-sheet.png` and writes `<dir>/report.json`. For assets with visible geometry, each view is gated: the subject must cover at least 1% of the tile, must not touch the tile edge, must not be a single flat color, and backface culling must not hide more than half of the nearest `FrontSide` surface.
 
 Capture options for `turntable` and `batch`:
 
@@ -140,12 +140,12 @@ Capture options for `turntable` and `batch`:
 | `--tile-size <WxH>` | `420x315` | Pixel size of each view, 64 to 2048 per side. Use `840x630` to inspect seams and glints. |
 | `--zoom <factor>` | `1` | Camera zoom for the perspective views, 0.25 to 8. Above 1, edge clipping in a zoomed view is reported as info, and so is a flat tile the subject fills completely. Ortho views stay at zoom 1, so their silhouettes are never clipped. |
 | `--zoom-ortho` | off | Apply `--zoom` to the ortho views as well. |
-| `--lighting <preset>` | `studio` | `studio`: soft key, rim and sky fill with ACES tone mapping. `cel`: hard warm key, cool rim and a violet sky fill with no tone mapping, close to how stylized toon games light their models. `dramatic`: low raking key, faint rim, deep shadows. Presets change lights and tone mapping only. |
+| `--lighting <preset>` | `studio` | `studio`: soft key, rim and sky fill with ACES tone mapping. `cel`: hard warm key, cool rim and a violet sky fill with no tone mapping, for a flat-shaded look. `dramatic`: low raking key, faint rim, deep shadows. Presets change lights and tone mapping only. |
 | `--save-views` | off | Also write `<view-id>.png` for each view next to the contact sheet. |
 | `--black-fill` | off | Also write `silhouette-sheet.png`: `ortho-top` and `ortho-front` as black silhouettes on white, taken from the same mask that measures coverage, so every visible mesh counts, glow and additive plume meshes included. `batch` stacks every asset's sheet into `<out>/black-fill-masks.png`. |
 | `--no-fail-on-console-error` | off | Report browser console errors as a warning instead of failing. |
 
-**Console errors.** Both `check` and `turntable` capture `console.error` output from the page, including Three.js shader compile and link errors. Any console error fails the run with a `CONSOLE_ERROR` finding that quotes the first message; all messages (up to 20, truncated) are in `consoleErrors`. `--fail-on-console-error` states the default explicitly. Shader errors only show up in `turntable`, because `check` never renders.
+**Console errors.** Both `check` and `turntable` capture `console.error` output from the page, including Three.js shader compile and link errors. Any console error fails the run with a `CONSOLE_ERROR` finding that quotes the first message; all messages (up to 20, truncated) are in `consoleErrors`. Shader errors only show up in `turntable`, because `check` never renders.
 
 **batch** runs `turntable` on every `.glb`, `.ts`, `.mts`, `.js` and `.mjs` file in a directory (not recursive, `.d.ts` skipped, sorted by name) with one card and one set of capture options. Each asset gets `<out>/<name>/contact-sheet.png` and `report.json`. A crash or timeout on one asset becomes an error row and the batch continues. It prints one compact JSON summary to stdout, a table to stderr, and writes both to `<out>/summary.json` and `<out>/summary.txt`:
 
@@ -175,7 +175,7 @@ Do not add `--disable-vulkan-surface`; it blanks compositor screenshots. Exit co
 
 ```json
 {
-  "id": "lowpoly-starships",
+  "id": "lowpoly-props",
   "frontAxis": "-Z",
   "topUpAxis": "-Z",
   "pivot": "center",
@@ -232,7 +232,7 @@ Integrity checks use the triangles drawn by each mesh across its active material
 | `requireUvsOnTextured` | A vertex lacks a finite UV pair on a channel used by its material's texture maps. | `MISSING_UVS` |
 | `requireConsistentWinding` | Two triangles traverse a shared edge in the same direction. | `INCONSISTENT_WINDING` |
 
-Bounds come from the vertices Three.js actually draws, after node transforms and accessor dequantization, so quantized GLBs (`KHR_mesh_quantization`, normalized integer positions) report real-world bounds. A test pins this against `getBounds()` from `@gltf-transform/core`.
+Bounds come from the vertices Three.js actually draws, after node transforms and accessor dequantization, so quantized GLBs (`KHR_mesh_quantization`, normalized integer positions) report real-world bounds.
 
 ## Factory modules
 
@@ -252,7 +252,7 @@ The factory executes in the headless browser on your machine, so run only module
 import { runAssetSession, evaluateAssetGates } from 'agent-threejs-turntable';
 
 const session = await runAssetSession({ assetPath: 'ship.glb', card: null, renderSheet: false });
-const { ok, findings } = evaluateAssetGates(session.metrics, null, undefined, { consoleErrors: session.consoleErrors });
+const { ok, findings } = evaluateAssetGates(session.metrics, null, { consoleErrors: session.consoleErrors });
 ```
 
 ## Development
@@ -264,4 +264,4 @@ npm run check
 bash scripts/smoke-pack.sh
 ```
 
-`npm run check` lints, type-checks and runs the CLI and Chromium regression suite. The smoke test packs the CLI, installs it in a temporary consumer and renders both quickstart cards.
+`npm run check` lints, type-checks and runs the CLI and Chromium regression suite. The smoke test renders both cards from the installed tarball and checks the CLI and library from a clean Git install.

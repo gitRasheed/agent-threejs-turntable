@@ -34,16 +34,20 @@ export function validateTimeout(timeoutMs: number): number {
   return timeoutMs;
 }
 
-export async function bundleBrowserEntry(source: string, resolveDir: string): Promise<string> {
+export async function bundleBrowserEntry(entry: 'assetBrowser' | 'probeBrowser', factoryPath?: string): Promise<string> {
+  const resolveDir = fileURLToPath(new URL('.', import.meta.url));
+  const modulePath = `./${entry}.js`;
   const result = await esbuild.build({
-    stdin: { contents: source, resolveDir, loader: 'ts' },
+    ...(factoryPath === undefined ? { entryPoints: [modulePath] } : {
+      stdin: { resolveDir, contents: `export { run } from ${JSON.stringify(modulePath)}; export * as factory from ${JSON.stringify(factoryPath)};` },
+    }),
     bundle: true,
     format: 'esm',
     platform: 'browser',
     target: 'es2022',
     write: false,
     // Resolve aliased imports from the harness so every factory shares its Three.js peer and exports.
-    absWorkingDir: fileURLToPath(new URL('.', import.meta.url)),
+    absWorkingDir: resolveDir,
     alias: { three: 'three' },
     logLevel: 'silent',
   });
@@ -137,9 +141,10 @@ export async function withHarnessPage<T>(options: HarnessOptions, fn: (h: Harnes
     await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: options.timeoutMs });
     return await fn({ page, baseUrl, consoleErrors, pageErrors });
   } finally {
-    if (browser !== undefined) {
-      await browser.close();
+    try {
+      await browser?.close();
+    } finally {
+      server.close();
     }
-    server.close();
   }
 }

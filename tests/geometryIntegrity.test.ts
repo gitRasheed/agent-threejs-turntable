@@ -27,7 +27,6 @@ function cube(indices = triangles) {
     position: attribute(new Float32Array(points), 3),
     index: attribute(new Uint16Array(indices), 1),
     normal: attribute(new Float32Array(points.map(n => n / Math.sqrt(3))), 3),
-    uv: attribute(new Float32Array(16), 2),
   };
 }
 
@@ -39,7 +38,7 @@ const clean = {
   openBoundaryEdges: 0, nonManifoldEdges: 0, windingInconsistencies: 0,
   missingNormals: 0, zeroLengthNormals: 0, unnormalizedNormals: 0, missingUvs: 0,
 };
-const textured = [{ start: 0, end: 36, usesTextureMap: true }];
+const textured = [{ start: 0, end: 36, requiredUvs: [attribute(new Float32Array(16), 2)] }];
 
 test('closed textured cube passes every gate', () => {
   const metrics = inspectGeometryIntegrity([{ ...cube(), spans: textured }]);
@@ -52,8 +51,7 @@ test('the non-indexed cube stays closed across split attributes and material gro
   const metrics = inspectGeometryIntegrity([{
     position: attribute(positions, 3),
     normal: attribute(positions.map(n => n / Math.sqrt(3)), 3),
-    uv: attribute(triangles.flatMap((_, i) => [i % 2, i % 3]), 2),
-    spans: [{ start: 0, end: 18, usesTextureMap: false }, { start: 18, end: 36, usesTextureMap: true }],
+    spans: [{ start: 0, end: 18, requiredUvs: [] }, { start: 18, end: 36, requiredUvs: [attribute(triangles.flatMap((_, i) => [i % 2, i % 3]), 2)] }],
   }]);
   assert.deepEqual(metrics, clean);
 });
@@ -99,8 +97,8 @@ test('short, zero, nonfinite and non-unit normals give separate counts', () => {
 });
 
 test('UV checks cover only the vertices used by textured spans, even after untextured use', () => {
-  const spans = [{ start: 0, end: 6, usesTextureMap: false }, { start: 6, end: 12, usesTextureMap: true }];
-  const mesh = { ...cube([0,1,2, 0,2,3, 0,4,7, 0,7,3]), uv: attribute([0,0], 2) };
+  const spans = [{ start: 0, end: 6, requiredUvs: [] }, { start: 6, end: 12, requiredUvs: [attribute([0,0], 2)] }];
+  const mesh = cube([0,1,2, 0,2,3, 0,4,7, 0,7,3]);
   const metrics = inspectGeometryIntegrity([{ ...mesh, spans }]);
   assert.equal(metrics.missingUvs, 3);
   assert.deepEqual(evaluateGeometryIntegrity(metrics, { requireUvsOnTextured: true }).map(f => f.id), ['MISSING_UVS']);

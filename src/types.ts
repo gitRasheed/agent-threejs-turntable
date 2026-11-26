@@ -138,6 +138,7 @@ export interface SampledColor {
   readonly meshes: readonly string[];
   readonly nearestRole: string | null;
   readonly nearestHex: string | null;
+  /** Worst distance among the linear samples that round to this hex color. */
   readonly deltaE76: number | null;
 }
 
@@ -150,6 +151,7 @@ export interface PaletteAssessment {
   /** Meshes whose color was read from a ShaderMaterial uniform. */
   readonly shaderUniformMeshes: number;
   readonly sampledCorners: number;
+  /** Number of distinct displayed sRGB hex colors. */
   readonly distinctColors: number;
   readonly maxDeltaE76: number | null;
   readonly worstViolation: PaletteCornerViolation | null;
@@ -195,7 +197,7 @@ export interface ViewMetrics {
   readonly beautyUniqueColors: number;
 }
 
-export interface Check3DReport {
+export interface CheckReport {
   readonly schemaVersion: 'agent-threejs-turntable/check/v1';
   readonly ok: boolean;
   readonly unsupportedGate: boolean;

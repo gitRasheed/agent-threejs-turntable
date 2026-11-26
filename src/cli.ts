@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +14,7 @@ import type {
   BatchAssetRow,
   BatchReport,
   CaptureSettings,
-  Check3DReport,
+  CheckReport,
   LightingPreset,
   StyleCard,
   TurntableReport,
@@ -63,13 +64,15 @@ const LIGHTING_PRESETS = new Set<LightingPreset>(['studio', 'cel', 'dramatic']);
 const BATCH_ASSET_EXTENSIONS = new Set(['.glb', '.ts', '.mts', '.js', '.mjs']);
 const MIN_TILE = 64;
 const MAX_TILE = 2048;
-const CONSOLE_FLAGS = ['--fail-on-console-error', '--no-fail-on-console-error'];
+const CONSOLE_FLAGS = ['--no-fail-on-console-error'];
 const CAPTURE_VALUE_FLAGS = ['--tile-size', '--zoom', '--lighting'];
 const CAPTURE_SWITCHES = ['--zoom-ortho', '--save-views', '--black-fill'];
 
 function usage(): string {
   return [
     'Usage:',
+    '  agent-threejs-turntable --help | -h',
+    '  agent-threejs-turntable --version | -v',
     '  agent-threejs-turntable check <asset> [--card <style-card.json>] [--out <report.json>] [--timeout <ms>] [--no-fail-on-console-error]',
     '  agent-threejs-turntable turntable <asset> --out <dir> [--card <style-card.json>] [--timeout <ms>] [capture options]',
     '  agent-threejs-turntable batch <dir> --out <dir> [--card <style-card.json>] [--timeout <ms>] [capture options]',
@@ -85,7 +88,6 @@ function usage(): string {
     '  --save-views              also write <view-id>.png for each of the nine views',
     '  --black-fill              write silhouette-sheet.png (batch: black-fill-masks.png), ortho-top and',
     '                            ortho-front as black silhouettes on white',
-    '  --fail-on-console-error     fail when the browser logs a console error (default)',
     '  --no-fail-on-console-error  report browser console errors as warnings instead of failing',
     'Exit codes: 0 pass, 1 gate violation, 2 invalid input / unsupported gate / renderer error',
     'gpu-probe exit codes: 0 WebGPU ok, 1 WebGPU blank, 2 launch error, 3 silent WebGL fallback, 4 WebGL failed too',
@@ -132,9 +134,6 @@ function parseArgs(
     } else {
       positional.push(token);
     }
-  }
-  if (switches.has('--fail-on-console-error') && switches.has('--no-fail-on-console-error')) {
-    throw new Error('--fail-on-console-error and --no-fail-on-console-error are mutually exclusive');
   }
   return { positional, flags, switches };
 }
@@ -368,11 +367,11 @@ async function runCheck(args: readonly string[]): Promise<number> {
     card,
     renderSheet: false,
   });
-  const evalResult = evaluateAssetGates(session.metrics, card, undefined, {
+  const evalResult = evaluateAssetGates(session.metrics, card, {
     consoleErrors: session.consoleErrors,
     failOnConsoleError: !switches.has('--no-fail-on-console-error'),
   });
-  const report: Check3DReport = {
+  const report: CheckReport = {
     schemaVersion: 'agent-threejs-turntable/check/v1',
     ok: evalResult.ok,
     unsupportedGate: evalResult.unsupportedGate,
@@ -438,10 +437,10 @@ async function turntableReport(job: TurntableJob): Promise<{ readonly report: Tu
     ...(job.saveViews ? { viewsDir: outDir } : {}),
     ...(silhouetteSheetPath !== null ? { silhouetteSheetPath } : {}),
   });
-  const evalResult = evaluateAssetGates(session.metrics, job.card, session.views, {
+  const evalResult = evaluateAssetGates(session.metrics, job.card, {
+    views: session.views,
     consoleErrors: session.consoleErrors,
     failOnConsoleError: job.failOnConsoleError,
-    capture: job.capture,
   });
   const report: TurntableReport = {
     schemaVersion: 'agent-threejs-turntable/turntable/v1',
@@ -651,6 +650,15 @@ async function runGpuProbeCli(args: readonly string[]): Promise<number> {
 export async function main(argv: readonly string[]): Promise<number> {
   const cmd = argv[0];
   try {
+    if (cmd === '--help' || cmd === '-h') {
+      process.stdout.write(`${usage()}\n`);
+      return 0;
+    }
+    if (cmd === '--version' || cmd === '-v') {
+      const manifest = createRequire(import.meta.url)('agent-threejs-turntable/package.json');
+      process.stdout.write(`${manifest.version}\n`);
+      return 0;
+    }
     if (cmd === 'skill') {
       const { positional, switches } = parseArgs(argv.slice(1), [], ['--project']);
       if (positional.length !== 1 || positional[0] !== 'install') {

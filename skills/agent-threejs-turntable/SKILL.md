@@ -13,7 +13,7 @@ description: Gate and review a 3D asset (a static .glb or a Three.js factory mod
 - Installed under its own manifest (projects pinned to another `three`): call that folder's `node_modules/.bin/agent-threejs-turntable`.
 - Missing: `npm install --save-dev agent-threejs-turntable && npx playwright install --only-shell chromium`. The browser takes about 280 MB on disk, so ask first.
 
-`agent-threejs-turntable` with no arguments prints every command and flag. Asset commands exit **0** for a pass, **1** for a gate failure (read `findings` in the JSON report) and **2** for bad input, a renderer error or a gate the tool cannot evaluate (read the JSON error on stderr, or the `unsupported` finding in the report).
+`agent-threejs-turntable --help` lists commands and flags. Asset commands exit **0** for a pass, **1** for a gate failure (read `findings` in the JSON report) and **2** for bad input, a renderer error or a gate the tool cannot evaluate (read the JSON error on stderr, or the `unsupported` finding in the report).
 
 `<asset>` is a self-contained binary `.glb` or a factory module (`.ts`, `.mts`, `.js`, `.mjs`) that exports `buildAsset(THREE)` or a default function returning a `THREE.Object3D` or a promise of one. A factory may import project code. `.gltf` files and GLBs that require Draco, Meshopt or KTX2 exit 2; re-export them uncompressed with PNG or JPEG textures.
 

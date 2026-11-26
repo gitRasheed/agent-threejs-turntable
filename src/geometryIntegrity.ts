@@ -18,15 +18,15 @@ export interface TriangleBuffers {
   readonly position: Vec3Attribute;
   readonly index?: ScalarAttribute | null;
   readonly normal?: Vec3Attribute | null;
-  readonly uv?: Vec2Attribute | null;
 }
 
 type UvAttributes = readonly (Vec2Attribute | null | undefined)[];
 
-export type TriangleSpan = {
+export interface TriangleSpan {
   readonly start: number;
   readonly end: number;
-} & ({ readonly usesTextureMap: boolean } | { readonly requiredUvs: UvAttributes });
+  readonly requiredUvs: UvAttributes;
+}
 
 export const EMPTY_INTEGRITY: GeometryIntegrity = {
   openBoundaryEdges: 0, nonManifoldEdges: 0, windingInconsistencies: 0,
@@ -51,7 +51,7 @@ export function inspectGeometryIntegrity(primitives: readonly TriangleBuffers[])
     else edge.reverse++;
   }
 
-  function inspectPrimitive({ position, index, normal, uv, spans }: TriangleBuffers) {
+  function inspectPrimitive({ position, index, normal, spans }: TriangleBuffers) {
     const count = index?.count ?? position.count;
     const vertices = new Map<number, number>();
     const missingUvVertices = new Set<number>();
@@ -92,9 +92,8 @@ export function inspectGeometryIntegrity(primitives: readonly TriangleBuffers[])
       return id;
     }
 
-    for (const span of spans ?? [{ start: 0, end: count, usesTextureMap: false }]) {
-      const { start, end } = span;
-      const requiredUvs = 'requiredUvs' in span ? span.requiredUvs : span.usesTextureMap ? [uv] : [];
+    for (const span of spans ?? [{ start: 0, end: count, requiredUvs: [] }]) {
+      const { start, end, requiredUvs } = span;
       if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end > count ||
           (end - start) % 3 !== 0) {
         throw new RangeError(`Invalid triangle span [${start}, ${end}) for ${count} corners`);

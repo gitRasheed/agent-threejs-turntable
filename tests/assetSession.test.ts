@@ -6,10 +6,11 @@ import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { Document, NodeIO } from '@gltf-transform/core';
 import { main } from '../src/cli.js';
-import { linearRgbToHexSrgb, runAssetSession, evaluateAssetGates, type StyleCard } from '../src/index.js';
+import { linearRgbToHexSrgb } from '../src/color.js';
+import { runAssetSession, evaluateAssetGates, type StyleCard } from '../src/index.js';
 
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const BOX_GLB = path.join(PKG_ROOT, 'tests', 'fixtures', 'BoxVertexColors.glb');
+const BOX_GLB = path.join(PKG_ROOT, 'examples', 'BoxVertexColors.glb');
 
 async function writeWedgeGlb(
   outPath: string,
@@ -340,7 +341,7 @@ export function buildAsset(THREE) {
       renderSheet: true,
       contactSheetPath: path.join(tmpDir, 'inst-sheet.png'),
     });
-    const instEval = evaluateAssetGates(instRes.metrics, whiteCard, instRes.views);
+    const instEval = evaluateAssetGates(instRes.metrics, whiteCard, { views: instRes.views });
     assert.equal(instEval.ok, false);
     assert.ok(instEval.findings.some((f) => f.id === 'PALETTE_DELTA_E_EXCEEDED'));
     for (const v of instRes.views) {
@@ -497,9 +498,9 @@ export function buildAsset(THREE) {
       const pixels = v.coverageRatio * (420 * 315);
       assert.ok(Math.abs(pixels - Math.round(pixels)) < 1e-6, `Expected unrounded ratio on ${v.id}, got ${v.coverageRatio}`);
     }
-    const nearThresholdEval = evaluateAssetGates(sheetRes.metrics, null, [
+    const nearThresholdEval = evaluateAssetGates(sheetRes.metrics, null, { views: [
       { id: 'persp-front', ortho: false, zoom: 1, coverageRatio: 1322 / (420 * 315), edgeClipped: false, beautyUniqueColors: 12 },
-    ]);
+    ] });
     assert.equal(nearThresholdEval.ok, false);
     assert.ok(nearThresholdEval.findings.some((f) => f.id === 'VIEW_SUBJECT_MISSING'));
   });

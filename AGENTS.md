@@ -3,8 +3,8 @@
 ## Module boundaries
 
 - Keep CLI parsing, exit codes and report files in `src/cli.ts`. Put installation of the packaged skill in `src/installSkill.ts`.
-- Read GLB container metadata in `src/glbHeader.ts`. In `src/browserRuntime.ts`, load the scene, measure geometry and produce images. Use the shared Three.js instance when bundling a factory.
-- Let `src/harness.ts` own Chromium, its page and the loopback server. The asset runner and GPU probe use this harness for each session. Keep WebGPU and WebGL probe rendering and classification in `src/gpuProbe.ts`.
+- Read GLB container metadata in `src/glbHeader.ts`. Keep session inputs and output files in `src/browserRuntime.ts`. Load the scene, measure geometry and render images in `src/assetBrowser.ts`. Use the shared Three.js instance when bundling a factory.
+- Let `src/harness.ts` own Chromium, its page and the loopback server. The asset runner and GPU probe use this harness for each session. Render both probe backends in `src/probeBrowser.ts` and classify the results in `src/gpuProbe.ts`.
 - Keep `src/evaluate.ts`, `src/geometryIntegrity.ts` and `src/color.ts` independent of the filesystem, browser and renderer. Define report shapes in `src/types.ts` and export the public library through `src/index.ts`.
 
 ## Invariants
