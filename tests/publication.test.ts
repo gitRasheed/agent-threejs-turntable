@@ -8,6 +8,13 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const skill = 'skills/agent-threejs-turntable/SKILL.md';
+// Preserve Playwright's browser cache before sandbox tests override HOME / USERPROFILE.
+const playwrightBrowsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH
+  ?? (process.platform === 'darwin'
+    ? path.join(os.homedir(), 'Library', 'Caches', 'ms-playwright')
+    : process.platform === 'win32'
+      ? path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local'), 'ms-playwright')
+      : path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'ms-playwright'));
 
 function sandbox(t: TestContext) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-threejs-turntable-install-'));
@@ -18,7 +25,9 @@ function sandbox(t: TestContext) {
   fs.mkdirSync(project);
   function cli(...args: string[]) {
     const run = spawnSync(process.execPath, [path.join(root, 'dist/cli.js'), ...args], {
-      cwd: project, env: { ...process.env, HOME: home, USERPROFILE: home }, encoding: 'utf8',
+      cwd: project,
+      env: { ...process.env, HOME: home, USERPROFILE: home, PLAYWRIGHT_BROWSERS_PATH: playwrightBrowsersPath },
+      encoding: 'utf8',
     });
     assert.ifError(run.error);
     return run;
