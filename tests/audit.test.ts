@@ -131,7 +131,16 @@ it('packages the CLI, browser color module, and guides with Three.js as a peer',
   assert.ok(manifest.peerDependencies.three);
   assert.equal(manifest.peerDependencies.three, manifest.devDependencies.three);
   assert.equal(manifest.dependencies.three, undefined);
-  const pack = spawnSync('npm', ['pack', '--dry-run', '--ignore-scripts', '--json'], { cwd: root, encoding: 'utf8' });
+  // Stage a copy without lifecycle scripts so npm 10's `pack --dry-run` cannot run `prepare` and delete `root/dist`
+  // while parallel test files execute `dist/cli.js`.
+  const stage = fs.mkdtempSync(path.join(dir, 'pack-stage-'));
+  const skip = new Set(['.git', 'node_modules', 'dist-test', 'artifacts']);
+  for (const entry of fs.readdirSync(root)) {
+    if (skip.has(entry)) continue;
+    fs.cpSync(path.join(root, entry), path.join(stage, entry), { recursive: true });
+  }
+  fs.writeFileSync(path.join(stage, 'package.json'), JSON.stringify({ ...manifest, scripts: {} }, null, 2));
+  const pack = spawnSync('npm', ['pack', '--dry-run', '--ignore-scripts', '--json'], { cwd: stage, encoding: 'utf8' });
   assert.equal(pack.status, 0, pack.stderr);
   const files = JSON.parse(pack.stdout)[0].files.map((file: { path: string }) => file.path);
   for (const name of ['dist/cli.js', 'dist/color.js', 'dist/evaluate.js', 'dist/harness.js', 'dist/gpuProbe.js', 'dist/index.d.ts', 'README.md', 'skills/agent-threejs-turntable/SKILL.md', 'examples/BoxVertexColors.glb',
